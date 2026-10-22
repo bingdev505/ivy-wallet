@@ -59,6 +59,6 @@ Existing categories with mixed or insufficient history remain available to both 
 
 The development update has been built and installed on a connected Android phone. Coverage includes payment parsing, duplicate prevention, account selection, name aliases, loan direction and repayments, split rounding, transaction rollback, category separation, trip data and backup round trips.
 
-The most recent full payment-feature verification passed 189 core unit tests, 8 transaction-editor unit tests and 36 on-device integration tests. The later Home gesture removal also passed an app build. See the pull request for checks rerun against the published commit.
+Publication checks on 22 October 2026 passed the app build, 194 core unit tests, 8 transaction-editor unit tests, 3 navigation unit tests and 36 on-device integration tests (241 tests total).
 
 Automatic merchant/person recognition depends on the information provided by the payment app or bank. Ambiguous or incomplete messages still need user correction. These changes are a community development update; the original maintainers do not provide support for this fork.
