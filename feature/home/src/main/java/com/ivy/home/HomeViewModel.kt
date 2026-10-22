@@ -92,8 +92,10 @@ class HomeViewModel @Inject constructor(
     private val transactionMapper: TransactionMapper,
     private val timeProvider: TimeProvider,
     private val timeConverter: TimeConverter,
-    private val features: Features
+    private val features: Features,
+    private val inboxRepository: com.ivy.data.repository.InboxRepository
 ) : ComposeViewModel<HomeState, HomeEvent>() {
+    private var unreadInboxCount by mutableStateOf(0)
     private var currentTheme by mutableStateOf(Theme.AUTO)
     private var name by mutableStateOf("")
     private var period by mutableStateOf(ivyContext.selectedPeriod)
@@ -154,7 +156,8 @@ class HomeViewModel @Inject constructor(
             hideBalance = getHideBalance(),
             expanded = getExpanded(),
             hideIncome = getHideIncome(),
-            shouldShowAccountSpecificColorInTransactions = getShouldShowAccountSpecificColorInTransactions()
+            shouldShowAccountSpecificColorInTransactions = getShouldShowAccountSpecificColorInTransactions(),
+            unreadInboxCount = unreadInboxCount
         )
     }
 
@@ -257,6 +260,11 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun start() {
+        viewModelScope.launch {
+            inboxRepository.getUnreadCount().collect { count ->
+                unreadInboxCount = count
+            }
+        }
         suspend {
             val startDay = startDayOfMonthAct(Unit)
             ivyContext.initSelectedPeriodInMemory(

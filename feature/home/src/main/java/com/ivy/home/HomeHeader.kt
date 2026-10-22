@@ -15,10 +15,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.ivy.wallet.ui.theme.components.IvyButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -47,7 +52,7 @@ import com.ivy.legacy.utils.isNotNullOrBlank
 import com.ivy.legacy.utils.rememberInteractionSource
 import com.ivy.legacy.utils.rememberSwipeListenerState
 import com.ivy.legacy.utils.springBounce
-import com.ivy.legacy.utils.verticalSwipeListener
+import com.ivy.navigation.InboxScreen
 import com.ivy.navigation.PieChartStatisticScreen
 import com.ivy.navigation.navigation
 import com.ivy.ui.R
@@ -77,6 +82,7 @@ internal fun HomeHeader(
     hideBalance: Boolean,
     onHiddenBalanceClick: () -> Unit,
     onSelectPreviousMonth: () -> Unit,
+    unreadInboxCount: Int = 0,
 ) {
     Column {
         val percentExpanded by animateFloatAsState(
@@ -96,6 +102,7 @@ internal fun HomeHeader(
             currency = currency,
             balance = balance,
             hideBalance = hideBalance,
+            unreadInboxCount = unreadInboxCount,
 
             onShowMonthModal = onShowMonthModal,
             onBalanceClick = onBalanceClick,
@@ -105,6 +112,7 @@ internal fun HomeHeader(
         )
 
         Spacer(Modifier.height(16.dp))
+
 
         if (percentExpanded < 0.5f) {
             TransactionsDividerLine(
@@ -128,7 +136,13 @@ private fun HeaderStickyRow(
     hideBalance: Boolean,
     onHiddenBalanceClick: () -> Unit,
     onSelectPreviousMonth: () -> Unit,
+    unreadInboxCount: Int = 0,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val nav = navigation()
+
+
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,8 +220,36 @@ private fun HeaderStickyRow(
 
         Spacer(Modifier.width(12.dp))
 
+        // Inbox / Notification Icon
+
+        Box(
+            modifier = Modifier
+                .clip(UI.shapes.circle)
+                .clickableNoIndication(rememberInteractionSource()) {
+                    nav.navigateTo(InboxScreen)
+                }
+                .padding(8.dp)
+        ) {
+            IvyIcon(
+                icon = R.drawable.ic_bell,
+                tint = UI.colors.pureInverse,
+            )
+
+            if (unreadInboxCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .align(Alignment.TopEnd)
+                        .background(UI.colors.red, UI.shapes.circle)
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
         Spacer(Modifier.width(40.dp)) // settings menu button spacer
     }
+
 }
 
 @ExperimentalAnimationApi
@@ -220,21 +262,13 @@ fun CashFlowInfo(
     hideBalance: Boolean,
     hideIncome: Boolean,
     onHiddenIncomeClick: () -> Unit,
-    onOpenMoreMenu: () -> Unit,
     onBalanceClick: () -> Unit,
     percentExpanded: Float,
     onHiddenBalanceClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier
-            .verticalSwipeListener(
-                sensitivity = Constants.SWIPE_DOWN_THRESHOLD_OPEN_MORE_MENU,
-                state = rememberSwipeListenerState(),
-                onSwipeDown = {
-                    onOpenMoreMenu()
-                },
-            ),
+        modifier = modifier,
     ) {
         BalanceRow(
             modifier = Modifier

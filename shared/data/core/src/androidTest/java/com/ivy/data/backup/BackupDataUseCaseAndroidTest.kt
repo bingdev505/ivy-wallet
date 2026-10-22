@@ -77,7 +77,8 @@ class BackupDataUseCaseAndroidTest {
             tagsReader = db.tagDao,
             tagAssociationReader = db.tagAssociationDao,
             tagsWriter = db.writeTagDao,
-            tagAssociationWriter = db.writeTagAssociationDao
+            tagAssociationWriter = db.writeTagAssociationDao,
+            tripDao = db.tripDao
         )
     }
 
@@ -89,6 +90,31 @@ class BackupDataUseCaseAndroidTest {
     @Test
     fun backup450_150() = runBlocking {
         backupTestCase("450-150")
+    }
+
+    @Test
+    fun tripGroupsAndTheirExpenseLinksSurviveBackupRestore() = runBlocking {
+        val group = com.ivy.data.db.entity.TripGroupEntity(name = "Trip", membersJson = "[\"Arun\"]")
+        val expense = com.ivy.data.db.entity.TripExpenseEntity(groupId = group.id, title = "Food", total = 600.0,
+            ownShare = 300.0, currency = "INR", payer = null, sharesJson = "[]", loanIdsJson = "[]", timestamp = 123)
+        db.tripDao.saveGroups(listOf(group))
+        db.tripDao.saveExpenses(listOf(expense))
+        val backup = useCase.generateJsonBackup()
+        db.openHelper.writableDatabase.execSQL("DELETE FROM trip_expenses")
+        db.openHelper.writableDatabase.execSQL("DELETE FROM trip_groups")
+        useCase.importJson(backup, onProgress = {})
+        org.junit.Assert.assertEquals(listOf(group), db.tripDao.groups())
+        org.junit.Assert.assertEquals(listOf(expense), db.tripDao.expenses())
+    }
+
+    @Test fun incomeCategoryTypeSurvivesBackupRestore() = runBlocking {
+        val category = com.ivy.data.db.entity.CategoryEntity(name = "Salary", color = 0,
+            transactionType = com.ivy.data.model.CategoryType.INCOME)
+        db.writeCategoryDao.save(category)
+        val backup = useCase.generateJsonBackup()
+        db.writeCategoryDao.deleteAll()
+        useCase.importJson(backup, onProgress = {})
+        org.junit.Assert.assertEquals(com.ivy.data.model.CategoryType.INCOME, db.categoryDao.findAll().single().transactionType)
     }
 
     private suspend fun backupTestCase(version: String) {

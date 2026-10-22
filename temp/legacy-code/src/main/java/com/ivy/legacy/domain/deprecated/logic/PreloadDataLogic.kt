@@ -118,61 +118,78 @@ class PreloadDataLogic @Inject constructor(
         CreateCategoryData(
             name = stringRes(R.string.food_drinks),
             color = Green,
-            icon = "fooddrink"
+            icon = "fooddrink",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.bills_fees),
             color = Red,
-            icon = "bills"
+            icon = "bills",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.transport),
             color = YellowLight,
-            icon = "transport"
+            icon = "transport",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.groceries),
             color = GreenLight,
-            icon = "groceries"
+            icon = "groceries",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.entertainment),
             color = Orange,
-            icon = "game"
+            icon = "game",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.shopping),
             color = Ivy,
-            icon = "shopping"
+            icon = "shopping",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
-            name = stringRes(R.string.gifts),
-            color = RedLight,
-            icon = "gift"
-        ),
-
-        CreateCategoryData(
-            name = stringRes(R.string.health),
-            color = IvyLight,
-            icon = "health"
+            name = stringRes(R.string.salary),
+            color = Green2,
+            icon = "cash",
+            transactionType = com.ivy.data.model.CategoryType.INCOME,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.investments),
             color = IvyDark,
-            icon = "leaf"
+            icon = "leaf",
+            transactionType = com.ivy.data.model.CategoryType.INCOME,
+        ),
+
+        CreateCategoryData(
+            name = stringRes(R.string.gifts),
+            color = RedLight,
+            icon = "gift",
+            transactionType = com.ivy.data.model.CategoryType.INCOME,
+        ),
+
+        CreateCategoryData(
+            name = stringRes(R.string.health),
+            color = IvyLight,
+            icon = "health",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
 
         CreateCategoryData(
             name = stringRes(R.string.loans),
             color = BlueDark,
-            icon = "loan"
+            icon = "loan",
+            transactionType = com.ivy.data.model.CategoryType.EXPENSE,
         ),
     )
 
@@ -186,6 +203,7 @@ class PreloadDataLogic @Inject constructor(
                 icon = data.icon?.let(IconAsset::from)?.getOrNull(),
                 orderNum = categoryOrderNum++,
                 id = CategoryId(UUID.randomUUID()),
+                transactionType = data.transactionType,
             )
         }.getOrNull()
 
@@ -200,91 +218,127 @@ class PreloadDataLogic @Inject constructor(
                 CreateCategoryData(
                     name = stringRes(R.string.car),
                     color = Blue3,
-                    icon = "vehicle"
+                    icon = "vehicle",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.work),
                     color = Blue2Light,
-                    icon = "work"
+                    icon = "work",
+                    transactionType = com.ivy.data.model.CategoryType.INCOME,
+                ),
+
+                CreateCategoryData(
+                    name = stringRes(R.string.freelance),
+                    color = BlueLight,
+                    icon = "work",
+                    transactionType = com.ivy.data.model.CategoryType.INCOME,
+                ),
+
+                CreateCategoryData(
+                    name = stringRes(R.string.business),
+                    color = Green,
+                    icon = "bank",
+                    transactionType = com.ivy.data.model.CategoryType.INCOME,
+                ),
+
+                CreateCategoryData(
+                    name = stringRes(R.string.rental),
+                    color = Yellow,
+                    icon = "house",
+                    transactionType = com.ivy.data.model.CategoryType.INCOME,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.home_category),
                     color = Green2,
-                    icon = "house"
+                    icon = "house",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.restaurant),
                     color = Orange3,
-                    icon = "restaurant"
+                    icon = "restaurant",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.family),
                     color = Red3Light,
-                    icon = "family"
+                    icon = "family",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.social_life),
                     color = Blue2,
-                    icon = "people"
+                    icon = "people",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.order_food),
                     color = Orange2,
-                    icon = "orderfood2"
+                    icon = "orderfood2",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.travel),
                     color = BlueLight,
-                    icon = "travel"
+                    icon = "travel",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.fitness),
                     color = Purple2,
-                    icon = "fitness"
+                    icon = "fitness",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.self_development),
                     color = Yellow,
-                    icon = "selfdevelopment"
+                    icon = "selfdevelopment",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.clothes),
                     color = Green2Light,
-                    icon = "clothes2"
+                    icon = "clothes2",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.beauty),
                     color = Red3,
-                    icon = "makeup"
+                    icon = "makeup",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.education),
                     color = Blue,
-                    icon = "education"
+                    icon = "education",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.pet),
                     color = Orange3Light,
-                    icon = "pet"
+                    icon = "pet",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
 
                 CreateCategoryData(
                     name = stringRes(R.string.sports),
                     color = Purple1,
-                    icon = "sports"
+                    icon = "sports",
+                    transactionType = com.ivy.data.model.CategoryType.EXPENSE,
                 ),
             )
         ).toImmutableList()

@@ -64,6 +64,7 @@ fun BoxWithConstraintsScope.ChooseCategoryModal(
     visible: Boolean,
     initialCategory: Category?,
     categories: List<Category>,
+    title: String? = null,
 
     showCategoryModal: (Category?) -> Unit,
     onCategoryChanged: (Category?) -> Unit,
@@ -95,7 +96,7 @@ fun BoxWithConstraintsScope.ChooseCategoryModal(
         Spacer(Modifier.height(32.dp))
 
         ModalTitle(
-            text = stringResource(R.string.choose_category)
+            text = title ?: stringResource(R.string.choose_category)
         )
 
         Spacer(Modifier.height(24.dp))

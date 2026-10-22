@@ -307,6 +307,12 @@ class RootActivity : AppCompatActivity(), RootScreen {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        viewModel.handleNewIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         if (viewModel.isAppLockEnabled()) {

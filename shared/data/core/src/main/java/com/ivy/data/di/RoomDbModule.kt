@@ -35,6 +35,8 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object RoomDbModule {
+    @Provides
+    fun provideTripDao(db: IvyRoomDatabase): com.ivy.data.db.dao.TripDao = db.tripDao
 
     @Provides
     @Singleton

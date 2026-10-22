@@ -45,8 +45,10 @@ fun ColumnScope.Title(
     titleTextFieldValue: TextFieldValue,
     setTitleTextFieldValue: (TextFieldValue) -> Unit,
     suggestions: Set<String>,
+    suggestionCategories: Map<String, String> = emptyMap(),
     onTitleChanged: (String?) -> Unit,
     scrollState: ScrollState? = null,
+    hintOverride: String? = null,
     onNext: () -> Unit,
 ) {
     IvyTitleTextField(
@@ -56,7 +58,7 @@ fun ColumnScope.Title(
         dividerModifier = Modifier
             .padding(horizontal = 24.dp),
         value = titleTextFieldValue,
-        hint = when (type) {
+        hint = hintOverride ?: when (type) {
             TransactionType.INCOME -> stringResource(R.string.income_title)
             TransactionType.EXPENSE -> stringResource(R.string.expense_title)
             TransactionType.TRANSFER -> stringResource(R.string.transfer_title)
@@ -80,6 +82,7 @@ fun ColumnScope.Title(
     val coroutineScope = rememberCoroutineScope()
     Suggestions(
         suggestions = suggestions,
+        categories = suggestionCategories,
     ) { suggestion ->
         setTitleTextFieldValue(selectEndTextFieldValue(suggestion))
         onTitleChanged(suggestion)
@@ -94,13 +97,14 @@ fun ColumnScope.Title(
 @Composable
 private fun Suggestions(
     suggestions: Set<String>,
+    categories: Map<String, String>,
     onClick: (String) -> Unit
 ) {
     val keyboardVisible by keyboardVisibleState()
     if (keyboardVisible) {
         if (suggestions.isNotEmpty()) {
             for (suggestion in suggestions.take(SUGGESTIONS_LIMIT)) {
-                Suggestion(suggestion = suggestion) {
+                Suggestion(suggestion = suggestion, category = categories[suggestion]) {
                     onClick(suggestion)
                 }
             }
@@ -111,21 +115,21 @@ private fun Suggestions(
 @Composable
 private fun Suggestion(
     suggestion: String,
+    category: String?,
     onClick: () -> Unit
 ) {
-    Text(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
                 onClick()
             }
             .padding(horizontal = 24.dp)
-            .padding(vertical = 12.dp),
-        text = suggestion,
-        style = UI.typo.b2.style(
-            fontWeight = FontWeight.Medium
-        )
-    )
+            .padding(vertical = 10.dp),
+    ) {
+        Text(text = suggestion, style = UI.typo.b2.style(fontWeight = FontWeight.Medium))
+        if (category != null) Text(text = category, style = UI.typo.c.style(color = UI.colors.gray), modifier = Modifier.padding(top = 4.dp))
+    }
 }
 
 @Preview

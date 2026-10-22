@@ -1,3 +1,9 @@
+# Ivy Wallet feature update
+
+This development update extends [Ivy Wallet by Ivy Apps](https://github.com/Ivy-Apps/ivy-wallet) with payment notification review, loan suggestions, shared expenses and trip groups. It retains the original GPL-3.0 license and attribution.
+
+See [Updates and new features](docs/FEATURE_UPDATES.md) for the changes, review workflow, database migrations and validation. The maintenance notice below applies to the original upstream project.
+
 >[!IMPORTANT]
 >**🚨 Notice: Project No Longer Maintained 🚨**
 >

@@ -39,6 +39,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.UUID
 import javax.inject.Inject
@@ -72,7 +73,8 @@ class BackupDataUseCase @Inject constructor(
     private val tagsReader: TagDao,
     private val tagAssociationReader: TagAssociationDao,
     private val tagsWriter: WriteTagDao,
-    private val tagAssociationWriter: WriteTagAssociationDao
+    private val tagAssociationWriter: WriteTagAssociationDao,
+    private val tripDao: com.ivy.data.db.dao.TripDao
 ) {
     suspend fun exportToFile(
         zipFileUri: Uri
@@ -80,6 +82,21 @@ class BackupDataUseCase @Inject constructor(
         val jsonString = generateJsonBackup()
         val file = createJsonDataFile(jsonString)
         zip(context = context, zipFileUri, listOf(file))
+        clearCacheDir()
+    }
+
+    suspend fun exportToBackupFile(
+        targetFile: File
+    ) {
+        val jsonString = generateJsonBackup()
+        val file = createJsonDataFile(jsonString)
+        targetFile.parentFile?.mkdirs()
+        java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(FileOutputStream(targetFile))).use { outStream ->
+            outStream.putNextEntry(java.util.zip.ZipEntry(file.name))
+            java.io.BufferedInputStream(FileInputStream(file)).use { inStream ->
+                inStream.copyTo(outStream)
+            }
+        }
         clearCacheDir()
     }
 
@@ -120,7 +137,9 @@ class BackupDataUseCase @Inject constructor(
                 transactions = transactions.await(),
                 sharedPrefs = sharedPrefs.await(),
                 tags = tags.await(),
-                tagAssociations = tagAssociations.await()
+                tagAssociations = tagAssociations.await(),
+                tripGroups = tripDao.groups(),
+                tripExpenses = tripDao.expenses()
             )
 
             json.encodeToString(completeData)
@@ -312,6 +331,8 @@ class BackupDataUseCase @Inject constructor(
             settings.await()
             tags.await()
             tagAssociations.await()
+            tripDao.saveGroups(completeData.tripGroups)
+            tripDao.saveExpenses(completeData.tripExpenses)
 
             onProgress(0.9)
         }

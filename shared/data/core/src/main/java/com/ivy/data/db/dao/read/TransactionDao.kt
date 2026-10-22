@@ -9,6 +9,9 @@ import java.util.UUID
 
 @Dao
 interface TransactionDao {
+    @Query("SELECT categoryId FROM transactions WHERE isDeleted = 0 AND loanId IS NULL AND loanRecordId IS NULL AND type = :type AND categoryId IS NOT NULL AND LOWER(TRIM(title)) = LOWER(TRIM(:name)) ORDER BY dateTime DESC LIMIT 1")
+    suspend fun latestPaymentCategory(name: String, type: TransactionType): UUID?
+
     @Query("SELECT * FROM transactions WHERE isDeleted = 0 ORDER BY dateTime DESC, dueDate ASC")
     suspend fun findAll(): List<TransactionEntity>
 

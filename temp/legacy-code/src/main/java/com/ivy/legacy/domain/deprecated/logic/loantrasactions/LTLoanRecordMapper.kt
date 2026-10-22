@@ -1,6 +1,7 @@
 package com.ivy.wallet.domain.deprecated.logic.loantrasactions
 
 import com.ivy.base.legacy.Transaction
+import com.ivy.base.model.TransactionType
 import com.ivy.legacy.datamodel.Loan
 import com.ivy.legacy.datamodel.LoanRecord
 import com.ivy.legacy.datamodel.temp.toLegacyDomain
@@ -74,12 +75,14 @@ class LTLoanRecordMapper @Inject constructor(
             val loanRecord =
                 ltCore.fetchLoanRecord(transaction.loanRecordId!!) ?: return@computationThread
             val loan = ltCore.fetchLoan(transaction.loanId!!) ?: return@computationThread
+            val moneyAccountId = if (com.ivy.data.model.SharedBill.isTransferLoan(loan.note) || transaction.type == TransactionType.TRANSFER)
+                ltCore.sharedBillMoneyAccount(transaction) else transaction.accountId
 
             val convertedAmount = ltCore.computeConvertedAmount(
                 oldLoanRecordAccountId = loanRecord.accountId,
                 oldLonRecordConvertedAmount = loanRecord.convertedAmount,
                 oldLoanRecordAmount = loanRecord.amount,
-                newLoanRecordAccountID = transaction.accountId,
+                newLoanRecordAccountID = moneyAccountId,
                 newLoanRecordAmount = transaction.amount.toDouble(),
                 loanAccountId = loan.accountId,
                 accounts = ltCore.fetchAccounts().map { it.toLegacyDomain() }
@@ -89,7 +92,7 @@ class LTLoanRecordMapper @Inject constructor(
                 amount = transaction.amount.toDouble(),
                 note = transaction.title,
                 dateTime = transaction.dateTime ?: loanRecord.dateTime,
-                accountId = transaction.accountId,
+                accountId = moneyAccountId,
                 convertedAmount = convertedAmount
             )
             ltCore.saveLoanRecords(modifiedLoanRecord.toLegacyDomain())

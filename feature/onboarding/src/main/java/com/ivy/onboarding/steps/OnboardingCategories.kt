@@ -134,22 +134,64 @@ fun BoxWithConstraintsScope.OnboardingCategories(
                     Spacer(Modifier.height(24.dp))
                 }
 
-                Categories(
-                    categories = categories,
-                    onClick = {
-                        categoryModalData = CategoryModalData(
-                            category = it
-                        )
-                    }
-                )
+                var selectedCategoryType: com.ivy.data.model.CategoryType by remember {
+                    mutableStateOf(com.ivy.data.model.CategoryType.EXPENSE)
+                }
 
-                if (categories.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
+                    androidx.compose.material3.FilterChip(
+                        selected = selectedCategoryType == com.ivy.data.model.CategoryType.EXPENSE,
+                        onClick = { selectedCategoryType = com.ivy.data.model.CategoryType.EXPENSE },
+                        label = {
+                            Text(
+                                text = stringResource(R.string.expense),
+                                fontWeight = if (selectedCategoryType == com.ivy.data.model.CategoryType.EXPENSE) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                    androidx.compose.material3.FilterChip(
+                        selected = selectedCategoryType == com.ivy.data.model.CategoryType.INCOME,
+                        onClick = { selectedCategoryType = com.ivy.data.model.CategoryType.INCOME },
+                        label = {
+                            Text(
+                                text = stringResource(R.string.income),
+                                fontWeight = if (selectedCategoryType == com.ivy.data.model.CategoryType.INCOME) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                val filteredCategories = categories.filter {
+                    it.transactionType == selectedCategoryType || it.transactionType == null
+                }
+
+                if (filteredCategories.isNotEmpty()) {
+                    Categories(
+                        categories = filteredCategories,
+                        onClick = {
+                            categoryModalData = CategoryModalData(
+                                category = it,
+                                transactionType = it.transactionType ?: selectedCategoryType
+                            )
+                        }
+                    )
                     Spacer(Modifier.height(20.dp))
                 }
 
                 Text(
                     modifier = Modifier.padding(horizontal = 32.dp),
-                    text = stringResource(R.string.suggestions),
+                    text = if (selectedCategoryType == com.ivy.data.model.CategoryType.EXPENSE) {
+                        "Expense Suggestions"
+                    } else {
+                        "Income Suggestions"
+                    },
                     style = UI.typo.b1.style(
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -157,17 +199,27 @@ fun BoxWithConstraintsScope.OnboardingCategories(
 
                 Spacer(Modifier.height(16.dp))
 
+                val filteredSuggestions = suggestions.filter { suggestion ->
+                    (suggestion.transactionType == selectedCategoryType || suggestion.transactionType == null) &&
+                    categories.none { it.name.value.equals(suggestion.name, ignoreCase = true) }
+                }
+
                 Suggestions(
-                    suggestions = suggestions.filter { suggestion ->
-                        categories.map { it.name.value.toLowerCaseLocal() }
-                            .contains(suggestion.name.toLowerCaseLocal()).not()
-                    },
+                    suggestions = filteredSuggestions,
                     onAddSuggestion = {
-                        onCreateCategory(it as CreateCategoryData)
+                        val suggestionData = it as CreateCategoryData
+                        onCreateCategory(
+                            if (suggestionData.transactionType == null) {
+                                suggestionData.copy(transactionType = selectedCategoryType)
+                            } else {
+                                suggestionData
+                            }
+                        )
                     },
                     onAddNew = {
                         categoryModalData = CategoryModalData(
-                            category = null
+                            category = null,
+                            transactionType = selectedCategoryType
                         )
                     }
                 )
@@ -258,7 +310,8 @@ private fun CategoryCard(
 
         Text(
             modifier = Modifier
-                .padding(start = 16.dp, end = 24.dp)
+                .weight(1f)
+                .padding(start = 16.dp, end = 8.dp)
                 .padding(vertical = 24.dp),
             text = category.name.value,
             style = UI.typo.b2.style(
@@ -266,7 +319,21 @@ private fun CategoryCard(
             )
         )
 
-        Spacer(Modifier.width(24.dp))
+        category.transactionType?.let { type ->
+            Text(
+                modifier = Modifier
+                    .clip(UI.shapes.rFull)
+                    .background(UI.colors.pureInverse.copy(alpha = 0.08f), UI.shapes.rFull)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                text = if (type == com.ivy.data.model.CategoryType.EXPENSE) stringResource(R.string.expense) else stringResource(R.string.income),
+                style = UI.typo.c.style(
+                    fontWeight = FontWeight.Medium,
+                    color = UI.colors.pureInverse.copy(alpha = 0.6f)
+                )
+            )
+        }
+
+        Spacer(Modifier.width(16.dp))
     }
 }
 

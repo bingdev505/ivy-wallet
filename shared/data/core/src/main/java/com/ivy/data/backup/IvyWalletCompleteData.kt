@@ -39,5 +39,7 @@ data class IvyWalletCompleteData(
     @SerialName("tags")
     val tags: List<TagEntity> = emptyList(),
     @SerialName("tagAssociations")
-    val tagAssociations: List<TagAssociationEntity> = emptyList()
+    val tagAssociations: List<TagAssociationEntity> = emptyList(),
+    val tripGroups: List<com.ivy.data.db.entity.TripGroupEntity> = emptyList(),
+    val tripExpenses: List<com.ivy.data.db.entity.TripExpenseEntity> = emptyList()
 )

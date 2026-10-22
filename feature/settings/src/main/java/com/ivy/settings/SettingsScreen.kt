@@ -136,6 +136,14 @@ fun BoxWithConstraintsScope.SettingsScreen() {
         },
         onSwitchLanguage = {
             viewModel.onEvent(SettingsEvent.SwitchLanguage)
+        },
+        autoBackupDaily = uiState.autoBackupDaily,
+        autoBackupInstant = uiState.autoBackupInstant,
+        onSetAutoBackupDaily = {
+            viewModel.onEvent(SettingsEvent.SetAutoBackupDaily(it))
+        },
+        onSetAutoBackupInstant = {
+            viewModel.onEvent(SettingsEvent.SetAutoBackupInstant(it))
         }
     )
 }
@@ -168,7 +176,11 @@ private fun BoxWithConstraintsScope.UI(
     onSetStartDateOfMonth: (Int) -> Unit = {},
     onDeleteAllUserData: () -> Unit = {},
     onDeleteCloudUserData: () -> Unit = {},
-    onSwitchLanguage: () -> Unit = {}
+    onSwitchLanguage: () -> Unit = {},
+    autoBackupDaily: Boolean = false,
+    autoBackupInstant: Boolean = false,
+    onSetAutoBackupDaily: (Boolean) -> Unit = {},
+    onSetAutoBackupInstant: (Boolean) -> Unit = {}
 ) {
     var currencyModalVisible by remember { mutableStateOf(false) }
     var nameModalVisible by remember { mutableStateOf(false) }
@@ -256,6 +268,26 @@ private fun BoxWithConstraintsScope.UI(
             ) {
                 onBackupData()
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            AppSwitch(
+                lockApp = autoBackupDaily,
+                onSetLockApp = onSetAutoBackupDaily,
+                text = "Daily Auto-Backup",
+                icon = R.drawable.ic_custom_calendar_m,
+                description = "Automatically backup data once every 24 hours"
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            AppSwitch(
+                lockApp = autoBackupInstant,
+                onSetLockApp = onSetAutoBackupInstant,
+                text = "Instant Auto-Backup",
+                icon = R.drawable.ic_custom_programming_m,
+                description = "Automatically backup data right after finishing edits"
+            )
 
             Spacer(Modifier.height(12.dp))
 

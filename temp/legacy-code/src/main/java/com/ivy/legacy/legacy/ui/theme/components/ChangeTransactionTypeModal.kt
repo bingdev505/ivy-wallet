@@ -49,6 +49,8 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
     initialType: TransactionType,
     id: UUID = UUID.randomUUID(),
     dismiss: () -> Unit,
+    onLoanSelected: (() -> Unit)? = null,
+    loanSelected: Boolean = false,
     onTransactionTypeChanged: (TransactionType) -> Unit
 ) {
     var transactionType by remember(id) {
@@ -61,7 +63,7 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
         dismiss = dismiss,
         PrimaryAction = {
             ModalSet {
-                save(
+                if (loanSelected) dismiss() else save(
                     transactionType = transactionType,
                     onTransactionTypeChanged = onTransactionTypeChanged,
                     dismiss = dismiss,
@@ -77,7 +79,7 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
 
         TransactionTypeButton(
             transactionType = TransactionType.INCOME,
-            selected = transactionType == TransactionType.INCOME,
+            selected = !loanSelected && transactionType == TransactionType.INCOME,
             selectedGradient = GradientGreen,
             textSelectedColor = White
         ) {
@@ -93,7 +95,7 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
 
         TransactionTypeButton(
             transactionType = TransactionType.EXPENSE,
-            selected = transactionType == TransactionType.EXPENSE,
+            selected = !loanSelected && transactionType == TransactionType.EXPENSE,
             selectedGradient = Gradient(UI.colors.pureInverse, UI.colors.gray),
             textSelectedColor = UI.colors.pure
         ) {
@@ -110,7 +112,7 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
 
             TransactionTypeButton(
                 transactionType = TransactionType.TRANSFER,
-                selected = transactionType == TransactionType.TRANSFER,
+                selected = !loanSelected && transactionType == TransactionType.TRANSFER,
                 selectedGradient = GradientIvy,
                 textSelectedColor = White
             ) {
@@ -123,6 +125,20 @@ fun BoxWithConstraintsScope.ChangeTransactionTypeModal(
             }
         }
 
+        if (onLoanSelected != null) {
+            Spacer(Modifier.height(12.dp))
+            TransactionTypeOption(
+                text = "Loan",
+                icon = R.drawable.ic_custom_loan_s,
+                tag = "modal_type_LOAN",
+                selected = loanSelected,
+                selectedGradient = GradientIvy,
+                textSelectedColor = White,
+            ) {
+                if (!loanSelected) onLoanSelected()
+                dismiss()
+            }
+        }
         Spacer(Modifier.height(48.dp))
     }
 }
@@ -144,6 +160,35 @@ private fun TransactionTypeButton(
     textSelectedColor: Color,
     onClick: () -> Unit
 ) {
+    TransactionTypeOption(
+        text = when (transactionType) {
+            TransactionType.INCOME -> stringResource(R.string.income)
+            TransactionType.EXPENSE -> stringResource(R.string.expense)
+            TransactionType.TRANSFER -> stringResource(R.string.transfer)
+        },
+        icon = when (transactionType) {
+            TransactionType.INCOME -> R.drawable.ic_income
+            TransactionType.EXPENSE -> R.drawable.ic_expense
+            TransactionType.TRANSFER -> R.drawable.ic_transfer
+        },
+        tag = "modal_type_${transactionType.name}",
+        selected = selected,
+        selectedGradient = selectedGradient,
+        textSelectedColor = textSelectedColor,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun TransactionTypeOption(
+    text: String,
+    icon: Int,
+    tag: String,
+    selected: Boolean,
+    selectedGradient: Gradient,
+    textSelectedColor: Color,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -157,7 +202,7 @@ private fun TransactionTypeButton(
                 onClick()
             }
             .padding(vertical = 16.dp)
-            .testTag("modal_type_${transactionType.name}"),
+            .testTag(tag),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Spacer(Modifier.width(16.dp))
@@ -165,22 +210,14 @@ private fun TransactionTypeButton(
         val textColor = if (selected) textSelectedColor else UI.colors.pureInverse
 
         IvyIcon(
-            icon = when (transactionType) {
-                TransactionType.INCOME -> R.drawable.ic_income
-                TransactionType.EXPENSE -> R.drawable.ic_expense
-                TransactionType.TRANSFER -> R.drawable.ic_transfer
-            },
+            icon = icon,
             tint = textColor
         )
 
         Spacer(Modifier.width(12.dp))
 
         Text(
-            text = when (transactionType) {
-                TransactionType.INCOME -> stringResource(R.string.income)
-                TransactionType.EXPENSE -> stringResource(R.string.expense)
-                TransactionType.TRANSFER -> stringResource(R.string.transfer)
-            },
+            text = text,
             style = UI.typo.b1.style(
                 color = textColor
             )

@@ -49,6 +49,11 @@ class Navigation @Inject constructor() {
 
   fun backStackEmpty() = backStack.empty()
 
+  fun returnToRoot(screen: Screen) {
+    resetBackStack()
+    switchScreen(screen)
+  }
+
   private fun popBackStack() {
     backStack.pop()
   }

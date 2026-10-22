@@ -3,8 +3,10 @@ package com.ivy.wallet.ui.theme.components
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -59,7 +61,12 @@ fun IvyCircleButton(
                 },
                 shape = UI.shapes.rFull
             )
-            .clickable(onClick = onClick, enabled = enabled)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
             .padding(all = backgroundPadding),
         icon = icon,
         tint = tint,

@@ -48,7 +48,6 @@ import com.ivy.legacy.ui.component.transaction.TransactionsDividerLine
 import com.ivy.legacy.ui.component.transaction.transactions
 import com.ivy.legacy.utils.horizontalSwipeListener
 import com.ivy.legacy.utils.rememberSwipeListenerState
-import com.ivy.legacy.utils.verticalSwipeListener
 import com.ivy.navigation.IvyPreview
 import com.ivy.navigation.screenScopedViewModel
 import com.ivy.ui.R
@@ -100,17 +99,18 @@ fun BoxWithConstraintsScope.HomeUi(
 
     val baseCurrency = uiState.baseData.baseCurrency
 
+    val listState = rememberScrollPositionListState(
+        key = "home_lazy_column",
+        initialFirstVisibleItemIndex = ivyContext.transactionsListState
+            ?.firstVisibleItemIndex ?: 0,
+        initialFirstVisibleItemScrollOffset = ivyContext.transactionsListState
+            ?.firstVisibleItemScrollOffset ?: 0
+    )
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .systemBarsPadding()
-            .verticalSwipeListener(
-                sensitivity = Constants.SWIPE_DOWN_THRESHOLD_OPEN_MORE_MENU,
-                state = rememberSwipeListenerState(),
-                onSwipeDown = {
-                    setMoreMenuExpanded(true)
-                }
-            )
             .horizontalSwipeListener(
                 sensitivity = SWIPE_HORIZONTAL_THRESHOLD,
                 state = rememberSwipeListenerState(),
@@ -122,13 +122,6 @@ fun BoxWithConstraintsScope.HomeUi(
                 }
             )
     ) {
-        val listState = rememberScrollPositionListState(
-            key = "home_lazy_column",
-            initialFirstVisibleItemIndex = ivyContext.transactionsListState
-                ?.firstVisibleItemIndex ?: 0,
-            initialFirstVisibleItemScrollOffset = ivyContext.transactionsListState
-                ?.firstVisibleItemScrollOffset ?: 0
-        )
 
         HomeHeader(
             expanded = uiState.expanded,
@@ -137,6 +130,7 @@ fun BoxWithConstraintsScope.HomeUi(
             currency = baseCurrency,
             balance = uiState.balance.toDouble(),
             hideBalance = uiState.hideBalance,
+            unreadInboxCount = uiState.unreadInboxCount,
 
             onShowMonthModal = {
                 choosePeriodModal = ChoosePeriodModalData(
@@ -164,9 +158,6 @@ fun BoxWithConstraintsScope.HomeUi(
                 onEvent(HomeEvent.SetExpanded(it))
             },
             balance = uiState.balance,
-            onOpenMoreMenu = {
-                setMoreMenuExpanded(true)
-            },
             onBalanceClick = {
                 onEvent(HomeEvent.BalanceClick)
             },
@@ -303,7 +294,6 @@ fun HomeLazyColumn(
     setUpcomingExpanded: (Boolean) -> Unit,
     setOverdueExpanded: (Boolean) -> Unit,
 
-    onOpenMoreMenu: () -> Unit,
     onBalanceClick: () -> Unit,
 
     onPayOrGet: (Transaction) -> Unit,
@@ -349,7 +339,6 @@ fun HomeLazyColumn(
                 monthlyIncome = stats.income.toDouble(),
                 monthlyExpenses = stats.expense.toDouble(),
 
-                onOpenMoreMenu = onOpenMoreMenu,
                 onBalanceClick = onBalanceClick,
                 onHiddenBalanceClick = onHiddenBalanceClick,
                 percentExpanded = 1f,

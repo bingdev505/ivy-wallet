@@ -94,9 +94,13 @@ import kotlin.math.roundToInt
 fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen) {
     val viewModel: EditTransactionViewModel = screenScopedViewModel()
     val uiState = viewModel.uiState()
+    var loanFormsVisible by remember(screen) { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(screen) {
         viewModel.start(screen)
+    }
+    LaunchedEffect(viewModel.loanFormReady) {
+        if (viewModel.loanFormReady && viewModel.loanPaymentAction != null) loanFormsVisible = true
     }
 
     val view = LocalView.current
@@ -107,6 +111,7 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
         baseCurrency = uiState.currency,
         initialTitle = uiState.initialTitle,
         titleSuggestions = uiState.titleSuggestions,
+        titleSuggestionCategories = uiState.titleSuggestionCategories,
         description = uiState.description,
         dateTime = uiState.dateTime,
         category = uiState.category,
@@ -123,6 +128,31 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
         tags = uiState.tags,
         transactionAssociatedTags = uiState.transactionAssociatedTags,
         hasChanges = uiState.hasChanges,
+        loanSelected = viewModel.loanPaymentAction != null,
+        onLoanSelected = {
+            viewModel.chooseLoanAction(if (uiState.transactionType == TransactionType.INCOME) com.ivy.data.model.LoanPayment.Action.BORROW else com.ivy.data.model.LoanPayment.Action.LEND)
+            loanFormsVisible = true
+        },
+        paymentSection = {
+            viewModel.paymentSuggestion?.takeIf { viewModel.loanPaymentAction == null }?.let { suggestion ->
+                Text(text = "${suggestion.reviewLabel} · You can change the type above.",
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    style = UI.typo.b2.style(color = UI.colors.gray))
+            }
+            viewModel.pendingPaymentCurrency?.let { detectedCurrency ->
+                Text(
+                    text = "Detected in $detectedCurrency. Choose a $detectedCurrency account under Pay with, or add one.",
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                    style = UI.typo.b2.style(color = UI.colors.gray),
+                )
+            }
+            if (viewModel.loanPaymentAction != null) com.ivy.wallet.ui.theme.components.IvyOutlinedButton(
+                modifier = Modifier.padding(horizontal = 24.dp), text = "Open loan form", iconStart = R.drawable.ic_custom_loan_s,
+                onClick = { loanFormsVisible = true })
+            else if (screen.initialTransactionId == null && uiState.transactionType == TransactionType.EXPENSE) {
+                ExpensePaymentSection(viewModel.paymentDraft, uiState.currency, uiState.amount, viewModel.knownPeople, viewModel.tripGroups, viewModel::updatePaymentDraft)
+            }
+        },
         onSetDate = {
             viewModel.onEvent(EditTransactionViewEvent.OnChangeDate)
         },
@@ -151,6 +181,7 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
             viewModel.onEvent(EditTransactionViewEvent.OnDueDateChanged(it))
         },
         onSetTransactionType = {
+            viewModel.leaveLoanMode()
             viewModel.onEvent(EditTransactionViewEvent.OnSetTransactionType(it))
         },
         onCreateCategory = {
@@ -164,7 +195,8 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
         },
         onSave = {
             view.hideKeyboard()
-            viewModel.onEvent(EditTransactionViewEvent.Save(it))
+            if (viewModel.loanPaymentAction != null) loanFormsVisible = true
+            else viewModel.onEvent(EditTransactionViewEvent.Save(it))
         },
         onSetHasChanges = {
             viewModel.onEvent(EditTransactionViewEvent.SetHasChanges(it))
@@ -185,6 +217,13 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
             viewModel.onEvent(it)
         }
     )
+    if (loanFormsVisible && viewModel.loanPaymentAction != null && viewModel.loanFormReady) LoanPaymentForms(
+        vm = viewModel, state = uiState,
+        onSetDate = { viewModel.onEvent(EditTransactionViewEvent.OnChangeDate) },
+        onSetTime = { viewModel.onEvent(EditTransactionViewEvent.OnChangeTime) },
+        onCreateAccount = { viewModel.onEvent(EditTransactionViewEvent.CreateAccount(it)) },
+        dismiss = { loanFormsVisible = false },
+    )
 }
 
 @Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
@@ -196,6 +235,7 @@ private fun BoxWithConstraintsScope.UI(
     baseCurrency: String,
     initialTitle: String?,
     titleSuggestions: ImmutableSet<String>,
+    titleSuggestionCategories: Map<String, String> = emptyMap(),
     description: String?,
     category: Category?,
     dateTime: Instant?,
@@ -233,6 +273,9 @@ private fun BoxWithConstraintsScope.UI(
     loanData: EditTransactionDisplayLoan = EditTransactionDisplayLoan(),
     backgroundProcessing: Boolean = false,
     hasChanges: Boolean = false,
+    loanSelected: Boolean = false,
+    onLoanSelected: (() -> Unit)? = null,
+    paymentSection: @Composable () -> Unit = {},
 
     ) {
     var chooseCategoryModalVisible by remember { mutableStateOf(false) }
@@ -296,7 +339,9 @@ private fun BoxWithConstraintsScope.UI(
                 changeTransactionTypeModalVisible = true
             },
             showDuplicateButton = true,
-            onDuplicate = onDuplicate
+            onDuplicate = onDuplicate,
+            loanSelected = loanSelected,
+            showTransferType = !loanData.isLoan,
         )
 
         Spacer(Modifier.height(32.dp))
@@ -310,7 +355,9 @@ private fun BoxWithConstraintsScope.UI(
             setTitleTextFieldValue = {
                 titleTextFieldValue = it
             },
-            suggestions = titleSuggestions,
+            suggestions = if (loanSelected) emptySet() else titleSuggestions,
+            hintOverride = if (loanSelected) "Loan title" else null,
+            suggestionCategories = titleSuggestionCategories,
             scrollState = scrollState,
 
             onTitleChanged = onTitleChange,
@@ -342,9 +389,11 @@ private fun BoxWithConstraintsScope.UI(
 
         Spacer(Modifier.height(32.dp))
 
-        Category(category = category, onChooseCategory = {
+        if (!loanSelected) Category(category = category, onChooseCategory = {
             chooseCategoryModalVisible = true
         })
+
+        paymentSection()
 
         Spacer(Modifier.height(16.dp))
 
@@ -430,7 +479,7 @@ private fun BoxWithConstraintsScope.UI(
     }
 
     onScreenStart {
-        if (screen.initialTransactionId == null) {
+        if (screen.initialTransactionId == null && (screen.initialAmount?.signum() ?: 0) <= 0) {
             amountModalShown = true
         }
     }
@@ -518,8 +567,17 @@ private fun BoxWithConstraintsScope.UI(
     ChooseCategoryModal(
         visible = chooseCategoryModalVisible,
         initialCategory = category,
-        categories = categories,
-        showCategoryModal = { categoryModalData = CategoryModalData(it) },
+        categories = when (transactionType) {
+            TransactionType.EXPENSE -> categories.filter { it.transactionType == com.ivy.data.model.CategoryType.EXPENSE || it.transactionType == null }
+            TransactionType.INCOME -> categories.filter { it.transactionType == com.ivy.data.model.CategoryType.INCOME || it.transactionType == null }
+            TransactionType.TRANSFER -> categories
+        },
+        showCategoryModal = { categoryModalData = CategoryModalData(it, transactionType = transactionType.takeUnless { type -> type == TransactionType.TRANSFER }?.let { type -> com.ivy.data.model.CategoryType.valueOf(type.name) }) },
+        title = when (transactionType) {
+            TransactionType.EXPENSE -> "Expense categories"
+            TransactionType.INCOME -> "Income categories"
+            TransactionType.TRANSFER -> "Categories"
+        },
         onCategoryChanged = {
             onCategoryChange(it)
             if (shouldFocusTitle(titleTextFieldValue, transactionType)) {
@@ -571,6 +629,8 @@ private fun BoxWithConstraintsScope.UI(
         visible = changeTransactionTypeModalVisible,
         includeTransferType = true,
         initialType = transactionType,
+        loanSelected = loanSelected,
+        onLoanSelected = onLoanSelected.takeIf { screen.initialTransactionId == null },
         dismiss = {
             changeTransactionTypeModalVisible = false
         }

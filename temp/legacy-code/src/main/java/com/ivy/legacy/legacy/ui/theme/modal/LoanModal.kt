@@ -81,6 +81,11 @@ data class LoanModalData(
     val autoFocusKeyboard: Boolean = true,
     val autoOpenAmountModal: Boolean = false,
     val createLoanTransaction: Boolean = false,
+    val initialName: String? = null,
+    val initialAmount: Double = 0.0,
+    val initialType: LoanType = LoanType.BORROW,
+    val initialNote: String? = null,
+    val requireTransaction: Boolean = false,
     val id: UUID = UUID.randomUUID()
 )
 
@@ -97,22 +102,25 @@ fun BoxWithConstraintsScope.LoanModal(
     accounts: List<Account> = emptyList(),
     onCreateAccount: (CreateAccountData) -> Unit = {},
     onPerformCalculations: () -> Unit = {},
+    onChooseExistingLoan: (() -> Unit)? = null,
+    NameSuggestions: @Composable (String, (String) -> Unit) -> Unit = { _, _ -> },
+    dismissOnSave: Boolean = true,
     dismiss: () -> Unit,
 ) {
     val loan = modal?.loan
     val timeConverter = LocalTimeConverter.current
 
     var nameTextFieldValue by remember(modal) {
-        mutableStateOf(selectEndTextFieldValue(loan?.name))
+        mutableStateOf(selectEndTextFieldValue(loan?.name ?: modal?.initialName))
     }
     var dateTime = modal?.loan?.dateTime ?: with(timeConverter) {
         dateTime.toLocalDateTime()
     }
     var type by remember(modal) {
-        mutableStateOf(modal?.loan?.type ?: LoanType.BORROW)
+        mutableStateOf(modal?.loan?.type ?: modal?.initialType ?: LoanType.BORROW)
     }
     var amount by remember(modal) {
-        mutableStateOf(modal?.loan?.amount ?: 0.0)
+        mutableStateOf(modal?.loan?.amount ?: modal?.initialAmount ?: 0.0)
     }
     var color by remember(modal) {
         mutableStateOf(loan?.color?.let { Color(it) } ?: Ivy)
@@ -121,7 +129,7 @@ fun BoxWithConstraintsScope.LoanModal(
         mutableStateOf(loan?.icon)
     }
     var noteTextFieldValue by remember(modal) {
-        mutableStateOf(selectEndTextFieldValue(loan?.note))
+        mutableStateOf(selectEndTextFieldValue(loan?.note ?: modal?.initialNote))
     }
     var currencyCode by remember(modal) {
         mutableStateOf(modal?.baseCurrency ?: "")
@@ -130,9 +138,17 @@ fun BoxWithConstraintsScope.LoanModal(
     var selectedAcc by remember(modal) {
         mutableStateOf(modal?.selectedAccount)
     }
+    var knownAccountIds by remember(modal) { mutableStateOf(accounts.map { it.id }.toSet()) }
+    LaunchedEffect(accounts) {
+        accounts.filter { it.id !in knownAccountIds }.singleOrNull()?.let {
+            selectedAcc = it
+            currencyCode = it.currency ?: modal?.baseCurrency.orEmpty()
+        }
+        knownAccountIds = accounts.map { it.id }.toSet()
+    }
 
     var createLoanTrans by remember(modal) {
-        mutableStateOf(modal?.createLoanTransaction ?: false)
+        mutableStateOf(modal?.requireTransaction == true || modal?.createLoanTransaction == true)
     }
 
     var accountChangeModal by remember { mutableStateOf(false) }
@@ -141,6 +157,9 @@ fun BoxWithConstraintsScope.LoanModal(
     var chooseIconModalVisible by remember(modal) {
         mutableStateOf(false)
     }
+
+    val nameFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     var accountModalData: AccountModalData? by remember { mutableStateOf(null) }
 
@@ -176,7 +195,7 @@ fun BoxWithConstraintsScope.LoanModal(
 
                         onCreateLoan = onCreateLoan,
                         onEditLoan = onEditLoan,
-                        dismiss = dismiss
+                        dismiss = if (dismissOnSave) dismiss else ({})
                     )
                 }
             }
@@ -203,6 +222,7 @@ fun BoxWithConstraintsScope.LoanModal(
             icon = icon,
 
             autoFocusKeyboard = modal?.autoFocusKeyboard ?: true,
+            focusRequester = nameFocusRequester,
 
             nameTextFieldValue = nameTextFieldValue,
             setNameTextFieldValue = { nameTextFieldValue = it },
@@ -210,6 +230,14 @@ fun BoxWithConstraintsScope.LoanModal(
                 chooseIconModalVisible = true
             }
         )
+
+        NameSuggestions(nameTextFieldValue.text) { nameTextFieldValue = selectEndTextFieldValue(it) }
+        if (onChooseExistingLoan != null) {
+            Spacer(Modifier.height(16.dp))
+            com.ivy.wallet.ui.theme.components.IvyOutlinedButton(
+                modifier = Modifier.padding(horizontal = 24.dp), text = "Existing loan / Repayment",
+                iconStart = R.drawable.ic_custom_loan_s, onClick = onChooseExistingLoan)
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -273,7 +301,7 @@ fun BoxWithConstraintsScope.LoanModal(
             selectedAccount = selectedAcc,
             onSelectedAccountChanged = {
                 selectedAcc = it
-                currencyCode = it.currency ?: getDefaultFIATCurrency().currencyCode
+                currencyCode = it.currency ?: modal?.baseCurrency.orEmpty()
             },
             onAddNewAccount = {
                 accountModalData = AccountModalData(
@@ -287,7 +315,7 @@ fun BoxWithConstraintsScope.LoanModal(
 
         Spacer(Modifier.height(16.dp))
 
-        IvyCheckboxWithText(
+        if (modal?.requireTransaction != true) IvyCheckboxWithText(
             modifier = Modifier
                 .padding(start = 16.dp)
                 .align(Alignment.Start),
@@ -313,14 +341,29 @@ fun BoxWithConstraintsScope.LoanModal(
     val amountModalId = remember(modal, amount) {
         UUID.randomUUID()
     }
+    val focusLoanNameField = {
+        coroutineScope.launch {
+            kotlinx.coroutines.delay(200)
+            try {
+                nameFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     AmountModal(
         id = amountModalId,
         visible = amountModalVisible,
         currency = currencyCode,
         initialAmount = amount,
-        dismiss = { amountModalVisible = false }
+        dismiss = {
+            amountModalVisible = false
+            focusLoanNameField()
+        }
     ) { newAmount ->
         amount = newAmount
+        focusLoanNameField()
     }
 
     CurrencyModal(
@@ -376,7 +419,7 @@ fun BoxWithConstraintsScope.LoanModal(
 
             onCreateLoan = onCreateLoan,
             onEditLoan = onEditLoan,
-            dismiss = dismiss
+            dismiss = if (dismissOnSave) dismiss else ({})
         )
         accountChangeModal = false
     }

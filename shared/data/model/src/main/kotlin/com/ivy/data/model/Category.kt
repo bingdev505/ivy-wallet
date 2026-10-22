@@ -7,6 +7,8 @@ import com.ivy.data.model.sync.Identifiable
 import com.ivy.data.model.sync.UniqueId
 import java.util.UUID
 
+enum class CategoryType { EXPENSE, INCOME }
+
 @JvmInline
 value class CategoryId(override val value: UUID) : UniqueId
 
@@ -16,4 +18,5 @@ data class Category(
     val color: ColorInt,
     val icon: IconAsset?,
     override val orderNum: Double,
+    val transactionType: com.ivy.data.model.CategoryType? = null,
 ) : Identifiable<CategoryId>, Reorderable

@@ -482,6 +482,8 @@ private fun circleButtonModifier(
         .size(size)
         .clip(CircleShape)
         .clickable(
+            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+            indication = null,
             onClick = onClick
         )
         .background(UI.colors.pure, UI.shapes.rFull)

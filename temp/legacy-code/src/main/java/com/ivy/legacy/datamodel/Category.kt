@@ -15,7 +15,8 @@ data class Category(
     val isSynced: Boolean = false,
     val isDeleted: Boolean = false,
 
-    val id: UUID = UUID.randomUUID()
+    val id: UUID = UUID.randomUUID(),
+    val transactionType: com.ivy.data.model.CategoryType? = null,
 ) {
     fun toEntity(): CategoryEntity = CategoryEntity(
         name = name,
@@ -24,6 +25,7 @@ data class Category(
         orderNum = orderNum,
         isSynced = isSynced,
         isDeleted = isDeleted,
-        id = id
+        id = id,
+        transactionType = transactionType
     )
 }

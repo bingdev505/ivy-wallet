@@ -96,11 +96,13 @@ class LTLoanMapper @Inject constructor(
             onBackgroundProcessingStart()
 
             val loan = ltCore.fetchLoan(transaction.loanId!!) ?: return@computationThread
+            val sharedBill = com.ivy.data.model.SharedBill.isTransferLoan(loan.note) || transaction.type == TransactionType.TRANSFER
+            val moneyAccountId = if (sharedBill) ltCore.sharedBillMoneyAccount(transaction) else transaction.accountId
 
             if (accountsChanged) {
                 val newLoanRecords: List<LoanRecord> = calculateLoanRecords(
                     loanId = transaction.loanId!!,
-                    newAccountId = transaction.accountId
+                    newAccountId = moneyAccountId
                 )
                 ltCore.saveLoanRecords(newLoanRecords)
             }
@@ -108,8 +110,8 @@ class LTLoanMapper @Inject constructor(
             val modifiedLoan = loan.copy(
                 amount = transaction.amount.toDouble(),
                 name = if (transaction.title.isNullOrEmpty()) loan.name else transaction.title!!,
-                type = if (transaction.type == TransactionType.INCOME) LoanType.BORROW else LoanType.LEND,
-                accountId = transaction.accountId
+                type = if (sharedBill) loan.type else if (transaction.type == TransactionType.INCOME) LoanType.BORROW else LoanType.LEND,
+                accountId = moneyAccountId
             )
 
             ltCore.saveLoan(modifiedLoan.toLegacyDomain())

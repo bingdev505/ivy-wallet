@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.viewModelScope
 import com.ivy.base.Toaster
 import com.ivy.base.legacy.SharedPrefs
@@ -71,6 +72,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDateTime
@@ -107,11 +111,19 @@ class EditTransactionViewModel @Inject constructor(
     private val timeConverter: TimeConverter,
     private val timeProvider: TimeProvider,
     private val dateTimePicker: DateTimePicker,
+    private val saveCapturedTransaction: com.ivy.data.repository.SaveCapturedTransaction,
+    private val sharedBillRepository: com.ivy.data.repository.SharedBillRepository,
+    private val tripRepository: com.ivy.data.repository.TripRepository,
+    private val loanPaymentRepository: com.ivy.data.repository.LoanPaymentRepository,
+    private val paymentSuggestions: com.ivy.data.repository.PaymentSuggestionRepository,
+    private val autoBackupManager: com.ivy.data.backup.auto.AutoBackupManager,
 ) : ComposeViewModel<EditTransactionViewState, EditTransactionViewEvent>() {
 
     private var transactionType by mutableStateOf(TransactionType.EXPENSE)
     private var initialTitle by mutableStateOf<String?>(null)
     private var titleSuggestions by mutableStateOf(persistentSetOf<String>())
+    private var titleSuggestionCategories by mutableStateOf<Map<String, String>>(emptyMap())
+    private var titleSuggestionsJob: Job? = null
     private var currency by mutableStateOf("")
     private var description by mutableStateOf<String?>(null)
     private var dateTime by mutableStateOf<Instant?>(null)
@@ -137,6 +149,97 @@ class EditTransactionViewModel @Inject constructor(
 
     private var loadedTransaction: Transaction? = null
     private var editMode = false
+    private var capturedMessageId: Long? = null
+    private var capturedAmount: BigDecimal? = null
+    private var capturedCurrency: String? = null
+    var pendingPaymentCurrency by mutableStateOf<String?>(null)
+        private set
+    private var saving by mutableStateOf(false)
+    val savingPayment: Boolean get() = saving
+    var loanFormReady by mutableStateOf(false)
+        private set
+    var paymentDraft by mutableStateOf(ExpensePaymentDraft())
+        private set
+    var loanPaymentAction by mutableStateOf<com.ivy.data.model.LoanPayment.Action?>(null)
+        private set
+    var paymentLoans by mutableStateOf<List<com.ivy.data.repository.LoanPaymentRepository.Choice>>(emptyList())
+        private set
+    private var capturedDebit: Boolean? = null
+    val loanPaymentDebit: Boolean? get() = capturedDebit
+    var paymentSuggestion by mutableStateOf<com.ivy.data.model.PaymentSuggestion.Result?>(null)
+        private set
+    private var detectedPayment: com.ivy.data.model.ParsedPaymentInfo? = null
+    fun loanFormName(): String? = if (detectedPayment != null) paymentSuggestion?.name else title?.takeIf { it.isNotBlank() }
+
+    fun chooseLoanAction(action: com.ivy.data.model.LoanPayment.Action) {
+        if (editMode || saving) return
+        loanPaymentAction = action
+        paymentDraft = ExpensePaymentDraft()
+        transactionType = when (action) {
+            com.ivy.data.model.LoanPayment.Action.LEND -> TransactionType.EXPENSE
+            com.ivy.data.model.LoanPayment.Action.BORROW -> TransactionType.INCOME
+            com.ivy.data.model.LoanPayment.Action.REPAYMENT -> if (capturedDebit == false) TransactionType.INCOME else TransactionType.EXPENSE
+        }
+        hasChanges = true
+    }
+
+    fun leaveLoanMode() { loanPaymentAction = null }
+    fun loanFormCurrency(): String = capturedCurrency ?: currency
+    fun loanFormAccounts(): List<Account> = accounts.filter {
+        val code = it.currency ?: baseUserCurrency
+        it.id != com.ivy.data.model.SharedBill.clearingAccount(code).id && (capturedCurrency == null || code == capturedCurrency)
+    }
+
+    fun submitNewLoan(data: com.ivy.wallet.domain.deprecated.logic.model.CreateLoanData) {
+        val action = if (data.type == com.ivy.data.model.LoanType.LEND) com.ivy.data.model.LoanPayment.Action.LEND else com.ivy.data.model.LoanPayment.Action.BORROW
+        val code = data.account?.currency ?: baseUserCurrency
+        val matching = paymentLoans.filter { it.currency == code && it.loan.type == data.type &&
+            com.ivy.data.model.ExpenseSplit.key(it.loan.name) == com.ivy.data.model.ExpenseSplit.key(data.name) }
+        if (matching.size > 1) {
+            android.widget.Toast.makeText(context, "Choose which existing loan to update", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        saveExistingLoanForm(action, data.name, matching.singleOrNull()?.loan?.id, data.amount, data.account,
+            with(timeConverter) { data.dateTime.toUTC() }, data.note, data.color.toArgb(), data.icon, false)
+    }
+
+    fun submitLoanRecord(choice: com.ivy.data.repository.LoanPaymentRepository.Choice,
+        data: com.ivy.wallet.domain.deprecated.logic.model.CreateLoanRecordData) {
+        val action = if (data.loanRecordType == com.ivy.base.model.LoanRecordType.DECREASE) com.ivy.data.model.LoanPayment.Action.REPAYMENT
+            else if (choice.loan.type == com.ivy.data.model.LoanType.LEND) com.ivy.data.model.LoanPayment.Action.LEND else com.ivy.data.model.LoanPayment.Action.BORROW
+        saveExistingLoanForm(action, choice.loan.name, choice.loan.id, data.amount, data.account, data.dateTime, data.note, null, null, data.interest)
+    }
+
+    private fun saveExistingLoanForm(action: com.ivy.data.model.LoanPayment.Action, person: String, id: UUID?,
+        value: Double, selected: Account?, time: Instant, note: String?, color: Int?, icon: String?, interest: Boolean) {
+        if (saving) return
+        if (selected == null) return
+        saving = true
+        viewModelScope.launch {
+            try {
+                ioThread {
+                    loanPaymentRepository.save(action, person, id, value, selected.id, selected.currency ?: baseUserCurrency,
+                        title, note, time, capturedMessageId, transactionAssociatedTags.map { it.value }, color, icon, interest)
+                    refreshWidget(WalletBalanceWidgetReceiver::class.java)
+                }
+                capturedMessageId?.let { context.getSystemService(android.app.NotificationManager::class.java)?.cancel("captured_payment", it.toInt()) }
+                paymentSuggestions.remember(detectedPayment, com.ivy.data.model.PaymentSuggestion.Kind.LOAN, person)
+                capturedMessageId = null
+                leaveLoanMode()
+                closeScreen()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, e.message ?: "Unable to save loan", android.widget.Toast.LENGTH_LONG).show()
+            } finally { saving = false }
+        }
+    }
+    var knownPeople by mutableStateOf<List<String>>(emptyList())
+        private set
+    var tripGroups by mutableStateOf<List<com.ivy.data.db.entity.TripGroupEntity>>(emptyList())
+        private set
+
+    fun updatePaymentDraft(draft: ExpensePaymentDraft) {
+        if (!saving && paymentDraft != draft) { paymentDraft = draft; hasChanges = true }
+    }
 
     // Used for optimising in updating all loan/loanRecords
     private var accountsChanged = false
@@ -147,8 +250,25 @@ class EditTransactionViewModel @Inject constructor(
     private val tagSearchDebounceTimeInMills: Long = 500
 
     fun start(screen: EditTransactionScreen) {
+        loanFormReady = false
         viewModelScope.launch {
             editMode = screen.initialTransactionId != null
+            transactionType = screen.type
+            titleSuggestionsJob?.cancel()
+            titleSuggestions = persistentSetOf()
+            titleSuggestionCategories = emptyMap()
+            capturedMessageId = screen.capturedMessageId
+            capturedAmount = screen.initialAmount
+            capturedCurrency = screen.initialCurrency
+            pendingPaymentCurrency = null
+            paymentDraft = ExpensePaymentDraft()
+            loanPaymentAction = null
+            capturedDebit = if (screen.capturedMessageId != null) screen.type == TransactionType.EXPENSE else null
+            paymentSuggestion = null
+            detectedPayment = screen.capturedMessageId?.let { ioThread { paymentSuggestions.payment(it) } }
+            paymentLoans = ioThread { loanPaymentRepository.choices() }
+            knownPeople = ioThread { tripRepository.people() }
+            tripGroups = ioThread { tripRepository.observeGroups().first() }
 
             baseUserCurrency = baseCurrency()
 
@@ -174,8 +294,10 @@ class EditTransactionViewModel @Inject constructor(
                 ),
                 categoryId = screen.categoryId,
                 type = screen.type,
-                amount = BigDecimal.ZERO,
-                toAmount = BigDecimal.ZERO
+                amount = screen.initialAmount ?: BigDecimal.ZERO,
+                toAmount = screen.initialAmount ?: BigDecimal.ZERO,
+                title = screen.initialTitle,
+                description = screen.initialDescription
             )
 
             tags = tagList.await()
@@ -183,6 +305,30 @@ class EditTransactionViewModel @Inject constructor(
                 tagRepository.findByAssociatedId(AssociationId(loadedTransaction().id)).map(Tag::id)
                     .toImmutableList()
             display(loadedTransaction!!)
+            val detectedCurrency = screen.initialCurrency
+            if (!editMode && detectedCurrency != null && detectedCurrency != (account?.currency ?: baseUserCurrency)) {
+                // Keep the detected amount and its currency together while the user
+                // chooses a payment account. Never relabel it as another currency.
+                pendingPaymentCurrency = detectedCurrency
+                currency = detectedCurrency
+            }
+            detectedPayment?.let { payment ->
+                val suggestion = ioThread { paymentSuggestions.suggest(payment) }
+                paymentSuggestion = suggestion
+                if (suggestion.kind == com.ivy.data.model.PaymentSuggestion.Kind.LOAN) {
+                    chooseLoanAction(if (suggestion.repayment) com.ivy.data.model.LoanPayment.Action.REPAYMENT
+                        else if (payment.isDebit) com.ivy.data.model.LoanPayment.Action.LEND else com.ivy.data.model.LoanPayment.Action.BORROW)
+                } else {
+                    if (suggestion.name != null && (title.isNullOrBlank() || title == payment.counterparty || title == payment.merchant)) {
+                        onTitleChanged(suggestion.name)
+                    }
+                    if (category == null) {
+                        category = categories.firstOrNull { it.id.value.toString() == suggestion.categoryId &&
+                            (it.transactionType == null || it.transactionType?.name == transactionType.name) }
+                    }
+                }
+            }
+            loanFormReady = true
         }
     }
 
@@ -192,6 +338,7 @@ class EditTransactionViewModel @Inject constructor(
             transactionType = getTransactionType(),
             initialTitle = getInitialTitle(),
             titleSuggestions = getTitleSuggestions(),
+            titleSuggestionCategories = titleSuggestionCategories,
             currency = getCurrency(),
             description = getDescription(),
             dateTime = getDateTime(),
@@ -363,6 +510,11 @@ class EditTransactionViewModel @Inject constructor(
             SharedPrefs.LAST_SELECTED_ACCOUNT_ID,
             null
         )?.let { UUID.fromString(it) }
+        screen.initialCurrency?.let { detectedCurrency ->
+            capturedPaymentAccount(accounts, detectedCurrency, baseUserCurrency, lastSelectedId)?.let {
+                return it.id
+            }
+        }
         if (lastSelectedId != null && ioThread {
                 accounts.find {
                     it.id == lastSelectedId
@@ -459,6 +611,7 @@ class EditTransactionViewModel @Inject constructor(
 
     private fun onAmountChanged(newAmount: Double) {
         viewModelScope.launch {
+            if (pendingPaymentCurrency == null) account?.let { updateCurrency(it) }
             loadedTransaction = loadedTransaction().copy(
                 amount = newAmount.toBigDecimal()
             )
@@ -495,12 +648,16 @@ class EditTransactionViewModel @Inject constructor(
                 accountId = newAccount.id
             )
             account = newAccount
+            updateCurrency(account = newAccount)
+
+            if (pendingPaymentCurrency != null && (newAccount.currency ?: baseUserCurrency) == capturedCurrency) {
+                amount = capturedAmount?.toDouble() ?: 0.0
+                loadedTransaction = loadedTransaction().copy(amount = capturedAmount ?: BigDecimal.ZERO)
+                pendingPaymentCurrency = null
+            }
+            pendingPaymentCurrency?.let { currency = it }
 
             updateCustomExchangeRateState(fromAccount = newAccount)
-
-            viewModelScope.launch {
-                updateCurrency(account = newAccount)
-            }
 
             accountsChanged = true
 
@@ -586,6 +743,13 @@ class EditTransactionViewModel @Inject constructor(
             type = newTransactionType
         )
         transactionType = newTransactionType
+        titleSuggestions = persistentSetOf()
+        titleSuggestionCategories = emptyMap()
+        if (category?.transactionType != null && category?.transactionType?.name != newTransactionType.name) {
+            category = null
+            loadedTransaction = loadedTransaction().copy(categoryId = null)
+        }
+        viewModelScope.launch { categories = sortCategories(); updateTitleSuggestions() }
         saveIfEditMode()
     }
 
@@ -655,6 +819,10 @@ class EditTransactionViewModel @Inject constructor(
     }
 
     private fun onCategoryChanged(newCategory: Category?) {
+        if (transactionType != TransactionType.TRANSFER && newCategory?.transactionType != null && newCategory.transactionType?.name != transactionType.name) {
+            android.widget.Toast.makeText(context, "Choose a category for ${transactionType.name.lowercase()}", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         loadedTransaction = loadedTransaction().copy(
             categoryId = newCategory?.id?.value
         )
@@ -666,14 +834,22 @@ class EditTransactionViewModel @Inject constructor(
     }
 
     private fun updateTitleSuggestions(title: String? = loadedTransaction().title) {
-        viewModelScope.launch {
-            titleSuggestions = ioThread {
-                smartTitleSuggestionsLogic.suggest(
+        titleSuggestionsJob?.cancel()
+        titleSuggestionsJob = viewModelScope.launch {
+            val type = transactionType
+            val (suggestions, categoryNames) = ioThread {
+                val suggestions = smartTitleSuggestionsLogic.suggest(
                     title = title,
                     categoryId = category?.id?.value,
-                    accountId = account?.id
+                    accountId = account?.id,
+                    type = type,
                 )
-            }.toPersistentSet()
+                suggestions to categoryRepository.findAll().associate { it.id.value to it.name.value }
+            }
+            if (type == transactionType) {
+                titleSuggestions = suggestions.map { it.title }.toPersistentSet()
+                titleSuggestionCategories = suggestions.associate { it.title to (categoryNames[it.categoryId] ?: "No category") }
+            }
         }
     }
 
@@ -681,25 +857,95 @@ class EditTransactionViewModel @Inject constructor(
         viewModelScope.launch {
             categoryCreator.editCategory(updatedCategory) {
                 categories = sortCategories()
+                if (category?.id == it.id) {
+                    category = it.takeIf { edited -> transactionType == TransactionType.TRANSFER || edited.transactionType == null || edited.transactionType?.name == transactionType.name }
+                    loadedTransaction = loadedTransaction().copy(categoryId = category?.id?.value)
+                }
+                updateTitleSuggestions()
             }
         }
     }
 
     private fun createAccount(data: CreateAccountData) {
         viewModelScope.launch {
+            val previousIds = accounts.map { it.id }.toSet()
             accountCreator.createAccount(data) {
                 accounts = accountsAct(Unit)
+                accounts.firstOrNull { it.id !in previousIds }?.let { newAccount ->
+                    onAccountChanged(newAccount)
+                }
             }
         }
     }
 
     private fun save(closeScreen: Boolean = true) {
+        if (saving) return
         if (!validTransaction()) {
             return
         }
 
+        saving = true
         viewModelScope.launch {
-            saveInternal(closeScreen = closeScreen)
+            try {
+                if (!editMode && transactionType == TransactionType.EXPENSE &&
+                    (paymentDraft.someoneElsePaid || paymentDraft.sharedWithOthers)) {
+                    backgroundProcessingStarted = true
+                    saveExpensePayment()
+                } else saveInternal(closeScreen = closeScreen)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, e.message ?: "Unable to save payment", android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                saving = false
+                backgroundProcessingStarted = false
+            }
+        }
+    }
+
+    private suspend fun saveExpensePayment() {
+        try {
+            require(dueDate == null) { "Record who paid after the expense has been paid" }
+            val selectedAccount = requireNotNull(account) { "Choose an account" }
+            val selectedCategory = requireNotNull(category) { "Choose an expense category" }
+            val billCurrency = selectedAccount.currency ?: baseUserCurrency
+            require(selectedAccount.id != com.ivy.data.model.SharedBill.clearingAccount(billCurrency).id) { "Choose your payment account" }
+            val draft = paymentDraft.equal(amount, billCurrency)
+            val total = BigDecimal.valueOf(amount)
+            if (capturedMessageId != null) {
+                require(!draft.someoneElsePaid) { "This outgoing payment was paid by you" }
+                require(capturedCurrency == null || billCurrency == capturedCurrency) { "Choose an account in $capturedCurrency" }
+                require(capturedAmount?.compareTo(total) == 0) { "The total must match the detected payment" }
+            }
+            val own = if (draft.sharedWithOthers) BigDecimal(draft.ownShare) else total
+            val shares = if (draft.sharedWithOthers) draft.people.map { com.ivy.data.model.SharedBill.Share(it.first, BigDecimal(it.second)) }
+                else listOf(com.ivy.data.model.SharedBill.Share(draft.payer, total))
+            val billTitle = title?.trim()?.takeIf { it.isNotBlank() } ?: selectedCategory.name.value
+            val billTime = dateTime ?: timeProvider.utcNow()
+            val plan = if (draft.sharedWithOthers) com.ivy.data.model.SharedBill.planSplit(
+                draft.payer.takeIf { draft.someoneElsePaid }, total, own, shares,
+                selectedAccount.id, billCurrency, selectedCategory.id.value, billTitle, billTime)
+            else com.ivy.data.model.SharedBill.plan(false, total, own, shares,
+                selectedAccount.id, billCurrency, selectedCategory.id.value, billTitle, billTime)
+            val result = plan.copy(transactions = plan.transactions.map {
+                if (it.type == TransactionType.EXPENSE) it.copy(description = description?.trim()?.takeIf { text -> text.isNotBlank() } ?: it.description) else it
+            })
+            val tripExpense = draft.groupId?.takeIf { draft.sharedWithOthers }?.let { groupId ->
+                com.ivy.data.db.entity.TripExpenseEntity(groupId = groupId, title = billTitle, total = total.toDouble(),
+                    ownShare = own.toDouble(), currency = billCurrency, payer = draft.payer.takeIf { draft.someoneElsePaid },
+                    sharesJson = Json.encodeToString(draft.people),
+                    loanIdsJson = Json.encodeToString(result.loans.map { it.id.toString() }),
+                    timestamp = billTime.toEpochMilli())
+            }
+            ioThread { sharedBillRepository.save(billCurrency, result, capturedMessageId, transactionAssociatedTags.map { it.value }, tripExpense) }
+            rememberOrdinaryPayment()
+            paymentDraft = ExpensePaymentDraft()
+            capturedMessageId?.let { context.getSystemService(android.app.NotificationManager::class.java)?.cancel("captured_payment", it.toInt()) }
+            capturedMessageId = null
+            refreshWidget(WalletBalanceWidgetReceiver::class.java)
+            closeScreen()
+        } catch (e: NumberFormatException) {
+            android.widget.Toast.makeText(context, "Enter valid shares, for example 300.50", android.widget.Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(context, "Unable to save expense. ${e.message.orEmpty()}", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
@@ -747,19 +993,40 @@ class EditTransactionViewModel @Inject constructor(
                     accountsChanged = false
                 }
 
-                loadedTransaction().toDomain(transactionMapper)?.let {
-                    transactionRepo.save(it)
+                val transaction = loadedTransaction().toDomain(transactionMapper)
+                    ?: error("Invalid transaction")
+                val messageId = capturedMessageId
+                if (messageId != null) {
+                    saveCapturedTransaction.save(transaction, messageId)
+                    rememberOrdinaryPayment()
+                    capturedMessageId = null
+                    context.getSystemService(android.app.NotificationManager::class.java)
+                        ?.cancel("captured_payment", messageId.toInt())
+                } else {
+                    transactionRepo.save(transaction)
                 }
 
                 refreshWidget(WalletBalanceWidgetReceiver::class.java)
+
+                autoBackupManager.triggerInstantBackupIfEnabled()
             }
 
+            paymentDraft = ExpensePaymentDraft()
             if (closeScreen) {
                 closeScreen()
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            android.widget.Toast.makeText(context, "Unable to save transaction. ${e.message.orEmpty()}", android.widget.Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun rememberOrdinaryPayment() {
+        if (transactionType == TransactionType.TRANSFER) return
+        paymentSuggestions.remember(detectedPayment,
+            if (transactionType == TransactionType.EXPENSE) com.ivy.data.model.PaymentSuggestion.Kind.EXPENSE else com.ivy.data.model.PaymentSuggestion.Kind.INCOME,
+            person = title?.takeIf { it.isNotBlank() },
+            categoryId = category?.id?.value?.toString())
     }
 
     @JvmName("setHasChangesMethod")
@@ -796,6 +1063,10 @@ class EditTransactionViewModel @Inject constructor(
     // Comment for push
     @Suppress("ReturnCount")
     private fun validTransaction(): Boolean {
+        pendingPaymentCurrency?.let {
+            android.widget.Toast.makeText(context, "Choose a $it account under Pay with, or add one", android.widget.Toast.LENGTH_LONG).show()
+            return false
+        }
         if (hasChosenSameSourceAndDestinationAccountToTransfer()) {
             viewModelScope.launch {
                 toaster.show(R.string.msg_source_account_destination_account_same_for_transfer)
@@ -986,7 +1257,9 @@ class EditTransactionViewModel @Inject constructor(
     }
 
     private suspend fun sortCategories(): ImmutableList<Category> {
-        val categories = categoryRepository.findAll()
+        val categories = categoryRepository.findAll().filter {
+            transactionType == TransactionType.TRANSFER || it.transactionType == null || it.transactionType?.name == transactionType.name
+        }
         return if (shouldSortCategoriesAscending()) {
             categories.sortedBy { it.name.value }.toImmutableList()
         } else {

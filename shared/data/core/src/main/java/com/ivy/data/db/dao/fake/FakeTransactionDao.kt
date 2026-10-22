@@ -11,6 +11,9 @@ import java.util.UUID
 @VisibleForTesting
 class FakeTransactionDao : TransactionDao, WriteTransactionDao {
     private val items = mutableListOf<TransactionEntity>()
+    override suspend fun latestPaymentCategory(name: String, type: TransactionType): UUID? =
+        findAllByType(type).firstOrNull { it.loanId == null && it.loanRecordId == null &&
+            it.categoryId != null && it.title?.trim()?.equals(name.trim(), true) == true }?.categoryId
 
     override suspend fun findAll(): List<TransactionEntity> {
         return items

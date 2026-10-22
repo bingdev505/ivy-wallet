@@ -16,6 +16,8 @@ sealed interface SettingsEvent {
         SettingsEvent
 
     data class SetStartDateOfMonth(val startDate: Int) : SettingsEvent
+    data class SetAutoBackupDaily(val enable: Boolean) : SettingsEvent
+    data class SetAutoBackupInstant(val enable: Boolean) : SettingsEvent
     data object DeleteCloudUserData : SettingsEvent
     data object DeleteAllUserData : SettingsEvent
     data object SwitchLanguage : SettingsEvent

@@ -54,6 +54,7 @@ class LoanTransactionsCore @Inject constructor(
     private val writeLoanRecordDao: WriteLoanRecordDao,
     private val writeLoanDao: WriteLoanDao,
     private val timeProvider: TimeProvider,
+    private val db: com.ivy.data.db.IvyRoomDatabase,
 ) {
     private var baseCurrencyCode: String? = null
 
@@ -176,7 +177,8 @@ class LoanTransactionsCore @Inject constructor(
             if (loanType == LoanType.BORROW) TransactionType.EXPENSE else TransactionType.INCOME
         } else if (loanType == LoanType.BORROW) TransactionType.INCOME else TransactionType.EXPENSE
 
-        val transCategoryId: UUID? = getCategoryId(existingCategoryId = categoryId)
+        val sharedBill = ioThread { com.ivy.data.model.SharedBill.isTransferLoan(loanDao.findById(loanId)?.note) || transaction?.type == TransactionType.TRANSFER || transactionDao.findLoanTransaction(loanId)?.type == TransactionType.TRANSFER }
+        val transCategoryId: UUID? = if (sharedBill) null else getCategoryId(existingCategoryId = categoryId)
 
         val modifiedTransaction: Transaction = transaction?.copy(
             loanId = loanId,
@@ -199,8 +201,21 @@ class LoanTransactionsCore @Inject constructor(
                 loanRecordId = if (isLoanRecord) loanRecordId else null
             )
 
+        val savedTransaction = if (sharedBill) {
+            val currency = ioThread { accountsDao.findById(selectedAccountId)?.currency } ?: baseCurrency()
+            val clearing = com.ivy.data.model.SharedBill.clearingAccount(currency)
+            ioThread { db.writeSharedBillDao.ensureAccount(clearing) }
+            val transfer = com.ivy.data.model.SharedBill.loanTransfer(loanId, loanType, selectedAccountId,
+                currency, amount, repayment = isLoanRecord && loanRecordType != LoanRecordType.INCREASE)
+            modifiedTransaction.copy(
+                type = TransactionType.TRANSFER,
+                accountId = transfer.accountId,
+                toAccountId = transfer.toAccountId,
+                toAmount = amount.toBigDecimal(), categoryId = null,
+            )
+        } else modifiedTransaction
         ioThread {
-            modifiedTransaction.toDomain(transactionMapper)?.let {
+            savedTransaction.toDomain(transactionMapper)?.let {
                 transactionRepo.save(it)
             }
         }
@@ -308,6 +323,13 @@ class LoanTransactionsCore @Inject constructor(
 
     suspend fun fetchAccounts() = ioThread {
         accountsDao.findAll()
+    }
+
+    suspend fun sharedBillMoneyAccount(transaction: Transaction): UUID {
+        val account = ioThread { accountsDao.findById(transaction.accountId) }
+        return if (transaction.type == TransactionType.TRANSFER && account != null &&
+            account.id == com.ivy.data.model.SharedBill.clearingAccount(account.currency ?: baseCurrency()).id
+        ) transaction.toAccountId ?: transaction.accountId else transaction.accountId
     }
 
     suspend fun saveLoanRecords(loanRecords: List<LoanRecord>) = ioThread {

@@ -5,5 +5,6 @@ import androidx.compose.ui.graphics.Color
 data class CreateCategoryData(
     val name: String,
     val color: Color,
-    val icon: String?
+    val icon: String?,
+    val transactionType: com.ivy.data.model.CategoryType? = null,
 )

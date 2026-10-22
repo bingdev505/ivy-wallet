@@ -10,6 +10,7 @@ sealed interface LoanScreenEvent {
     data class OnCreateAccount(val accountData: CreateAccountData) : LoanScreenEvent
     data class OnReOrderModalShow(val show: Boolean) : LoanScreenEvent
     data class OnTabChanged(val tab: LoanTab) : LoanScreenEvent
+    data class OnSortChanged(val sort: LoanSort) : LoanScreenEvent
     data object OnAddLoan : LoanScreenEvent
     data object OnLoanModalDismiss : LoanScreenEvent
     data object OnChangeDate : LoanScreenEvent

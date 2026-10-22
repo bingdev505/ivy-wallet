@@ -61,6 +61,7 @@ data class CategoryModalData(
     val category: Category?,
     val id: UUID = UUID.randomUUID(),
     val autoFocusKeyboard: Boolean = true,
+    val transactionType: com.ivy.data.model.CategoryType? = null,
 )
 
 @Deprecated("Old design system. Use `:ivy-design` and Material3")
@@ -72,6 +73,9 @@ fun BoxWithConstraintsScope.CategoryModal(
     dismiss: () -> Unit,
 ) {
     val initialCategory = modal?.category
+    var transactionType by remember(modal) {
+        mutableStateOf(if (initialCategory != null) initialCategory.transactionType else modal?.transactionType)
+    }
     var nameTextFieldValue by remember(modal) {
         mutableStateOf(selectEndTextFieldValue(initialCategory?.name?.value))
     }
@@ -100,7 +104,8 @@ fun BoxWithConstraintsScope.CategoryModal(
                         initialCategory.copy(
                             name = NotBlankTrimmedString.from(nameTextFieldValue.text.trim()).bind(),
                             color = ColorInt(color.toArgb()),
-                            icon = icon
+                            icon = icon,
+                            transactionType = transactionType
                         )
                     }.getOrNull()
 
@@ -112,7 +117,8 @@ fun BoxWithConstraintsScope.CategoryModal(
                         CreateCategoryData(
                             name = nameTextFieldValue.text.trim(),
                             color = color,
-                            icon = icon?.id
+                            icon = icon?.id,
+                            transactionType = transactionType
                         )
                     )
                 }
@@ -150,7 +156,16 @@ fun BoxWithConstraintsScope.CategoryModal(
             }
         )
 
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(24.dp))
+        Row(modifier = Modifier.padding(horizontal = 24.dp)) {
+            listOf("Expense" to com.ivy.data.model.CategoryType.EXPENSE,
+                "Income" to com.ivy.data.model.CategoryType.INCOME, "Both" to null).forEach { (label, type) ->
+                androidx.compose.material3.FilterChip(selected = transactionType == type,
+                    onClick = { transactionType = type }, label = { androidx.compose.material3.Text(label) })
+                Spacer(Modifier.width(8.dp))
+            }
+        }
+        Spacer(Modifier.height(24.dp))
 
         IvyColorPicker(
             selectedColor = color,
@@ -182,16 +197,15 @@ fun IconNameRow(
     nameTextFieldValue: TextFieldValue,
     setNameTextFieldValue: (TextFieldValue) -> Unit,
 
-    showChooseIconModal: () -> Unit
+    showChooseIconModal: () -> Unit,
+    focusRequester: FocusRequester = remember { FocusRequester() }
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val nameFocus = FocusRequester()
-
         onScreenStart {
             if (autoFocusKeyboard) {
-                nameFocus.requestFocus()
+                focusRequester.requestFocus()
             }
         }
 
@@ -212,12 +226,11 @@ fun IconNameRow(
 
         val view = LocalView.current
         IvyNameTextField(
-            modifier = Modifier
-                .padding(start = 28.dp, end = 36.dp)
-                .focusRequester(nameFocus),
+            modifier = Modifier.padding(start = 28.dp, end = 36.dp),
             underlineModifier = Modifier.padding(start = 24.dp, end = 32.dp),
             value = nameTextFieldValue,
             hint = hint,
+            focusRequester = focusRequester,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
                 imeAction = ImeAction.Done,

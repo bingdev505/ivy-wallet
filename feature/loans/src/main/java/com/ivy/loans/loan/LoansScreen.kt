@@ -3,10 +3,13 @@ package com.ivy.loans.loan
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +55,8 @@ import com.ivy.ui.R
 import com.ivy.ui.rememberScrollPositionListState
 import com.ivy.wallet.ui.theme.Blue
 import com.ivy.wallet.ui.theme.Gray
+import com.ivy.wallet.ui.theme.Green
+import com.ivy.wallet.ui.theme.Red
 import com.ivy.wallet.ui.theme.components.BalanceRow
 import com.ivy.wallet.ui.theme.components.CircleButtonFilled
 import com.ivy.wallet.ui.theme.components.ItemIconSDefaultIcon
@@ -104,7 +109,16 @@ private fun BoxWithConstraintsScope.UI(
             onDismiss = { nav.back() },
             setReorderModalVisible = { onEventHandler.invoke(LoanScreenEvent.OnReOrderModalShow(show = it)) },
             state.totalOweAmount,
-            state.totalOwedAmount
+            state.totalOwedAmount,
+            state.totalNetAmount,
+            state.netAmountValue
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        LoanSortRow(
+            selectedSort = state.selectedSort,
+            onSortChanged = { onEventHandler.invoke(LoanScreenEvent.OnSortChanged(it)) }
         )
 
         Spacer(Modifier.height(8.dp))
@@ -218,7 +232,9 @@ private fun Toolbar(
     onDismiss: () -> Unit,
     setReorderModalVisible: (Boolean) -> Unit,
     totalOweAmount: String,
-    totalOwedAmount: String
+    totalOwedAmount: String,
+    totalNetAmount: String,
+    netAmountValue: Double
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -252,6 +268,18 @@ private fun Toolbar(
                     fontWeight = FontWeight.Bold
                 )
             }
+            if (totalNetAmount.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.loan_net_amount, totalNetAmount),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = when {
+                        netAmountValue > 0.0 -> Green
+                        netAmountValue < 0.0 -> Red
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         CircleButtonFilled(
@@ -268,6 +296,53 @@ private fun Toolbar(
 
         Spacer(Modifier.width(24.dp))
     }
+}
+
+@Composable
+private fun LoanSortRow(
+    selectedSort: LoanSort,
+    onSortChanged: (LoanSort) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LoanSortChip(
+            text = stringResource(R.string.loan_sort_all),
+            selected = selectedSort == LoanSort.ALL
+        ) { onSortChanged(LoanSort.ALL) }
+        LoanSortChip(
+            text = stringResource(R.string.loan_sort_lend),
+            selected = selectedSort == LoanSort.LEND
+        ) { onSortChanged(LoanSort.LEND) }
+        LoanSortChip(
+            text = stringResource(R.string.loan_sort_borrow),
+            selected = selectedSort == LoanSort.BORROW
+        ) { onSortChanged(LoanSort.BORROW) }
+    }
+}
+
+@Composable
+private fun LoanSortChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Text(
+        modifier = Modifier
+            .clip(UI.shapes.rFull)
+            .background(if (selected) UI.colors.primary else UI.colors.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        text = text,
+        style = UI.typo.c.style(
+            color = if (selected) findContrastTextColor(UI.colors.primary) else UI.colors.pureInverse,
+            fontWeight = FontWeight.Bold
+        )
+    )
 }
 
 @Composable
@@ -480,11 +555,14 @@ private fun Preview(theme: Theme = Theme.LIGHT) {
         accounts = persistentListOf(),
         totalOweAmount = "1000.00 INR",
         totalOwedAmount = "1500.0 INR",
+        totalNetAmount = "500.00 INR",
+        netAmountValue = 500.0,
         loanModalData = null,
         reorderModalVisible = false,
         selectedAccount = null,
         paidOffLoanVisibility = true,
-        dateTime = Instant.now()
+        dateTime = Instant.now(),
+        selectedSort = LoanSort.ALL
     )
     IvyWalletPreview(theme) {
         UI(

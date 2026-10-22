@@ -39,7 +39,8 @@ class LogoutLogic @Inject constructor(
     private val writeBudgetDao: WriteBudgetDao,
     private val writeLoanDao: WriteLoanDao,
     private val writeLoanRecordDao: WriteLoanRecordDao,
-    private val exchangeRatesRepository: ExchangeRatesRepository
+    private val exchangeRatesRepository: ExchangeRatesRepository,
+    private val tripDao: com.ivy.data.db.dao.TripDao
 ) {
     suspend fun logout() {
         ioThread {
@@ -67,6 +68,7 @@ class LogoutLogic @Inject constructor(
         writeLoanDao.deleteAll()
         writeLoanRecordDao.deleteAll()
         exchangeRatesRepository.deleteAll()
+        tripDao.deleteAll()
     }
 
     suspend fun cloudLogout() {

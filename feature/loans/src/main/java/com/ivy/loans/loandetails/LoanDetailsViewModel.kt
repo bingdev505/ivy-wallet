@@ -232,7 +232,8 @@ class LoanDetailsViewModel @Inject constructor(
                 loanRecordModalData.value = LoanRecordModalData(
                     loanRecord = null,
                     baseCurrency = baseCurrency.value,
-                    selectedAccount = selectedLoanAccount.value
+                    selectedAccount = selectedLoanAccount.value,
+                    createLoanRecordTransaction = com.ivy.data.model.SharedBill.isTransferLoan(loan.value?.note) || associatedTransaction?.type == com.ivy.base.model.TransactionType.TRANSFER,
                 )
             }
 

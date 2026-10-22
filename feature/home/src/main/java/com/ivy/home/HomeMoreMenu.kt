@@ -537,6 +537,20 @@ private fun QuickAccess(
 
             Spacer(Modifier.weight(1f))
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Spacer(Modifier.weight(1f))
+            MoreMenuButton(icon = R.drawable.ic_vue_people_people, label = "Trip groups") {
+                nav.navigateTo(com.ivy.navigation.TripGroupsScreen)
+            }
+            repeat(3) {
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(92.dp))
+            }
+            Spacer(Modifier.weight(1f))
+        }
     }
 }
 

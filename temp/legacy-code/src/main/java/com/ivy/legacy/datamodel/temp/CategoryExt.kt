@@ -10,5 +10,6 @@ fun CategoryEntity.toLegacyDomain(): Category = Category(
     orderNum = orderNum,
     isSynced = isSynced,
     isDeleted = isDeleted,
-    id = id
+    id = id,
+    transactionType = transactionType,
 )

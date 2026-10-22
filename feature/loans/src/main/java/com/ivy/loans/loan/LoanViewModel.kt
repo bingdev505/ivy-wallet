@@ -69,6 +69,7 @@ class LoanViewModel @Inject constructor(
     private var reorderModalVisible by mutableStateOf(false)
     private var dateTime by mutableStateOf<Instant>(timeProvider.utcNow())
     private var selectedTab by mutableStateOf(LoanTab.PENDING)
+    private var selectedSort by mutableStateOf(LoanSort.ALL)
 
     /** If true paid off loans will be visible */
     private var paidOffLoanVisibility by mutableStateOf(true)
@@ -93,9 +94,15 @@ class LoanViewModel @Inject constructor(
             reorderModalVisible = getReorderModalVisible(),
             totalOweAmount = getTotalOweAmount(totalOweAmount, defaultCurrencyCode),
             totalOwedAmount = getTotalOwedAmount(totalOwedAmount, defaultCurrencyCode),
+            totalNetAmount = getTotalNetAmount(
+                totalOwedAmount - totalOweAmount,
+                defaultCurrencyCode
+            ),
+            netAmountValue = totalOwedAmount - totalOweAmount,
             paidOffLoanVisibility = getPaidOffLoanVisibility(),
             dateTime = dateTime,
             selectedTab = getSelectedTab(),
+            selectedSort = selectedSort,
             completedLoans = getCompletedLoans(),
             pendingLoans = getPendingLoans()
         )
@@ -150,7 +157,9 @@ class LoanViewModel @Inject constructor(
                 loanModalData = LoanModalData(
                     loan = null,
                     baseCurrency = baseCurrencyCode,
-                    selectedAccount = selectedAccount
+                    selectedAccount = selectedAccount,
+                    autoFocusKeyboard = false,
+                    autoOpenAmountModal = true
                 )
             }
 
@@ -185,6 +194,11 @@ class LoanViewModel @Inject constructor(
 
             is LoanScreenEvent.OnTabChanged -> {
                 setTab(event.tab)
+            }
+
+            is LoanScreenEvent.OnSortChanged -> {
+                selectedSort = event.sort
+                applyLoanLists()
             }
         }
     }
@@ -240,8 +254,7 @@ class LoanViewModel @Inject constructor(
                         )
                     }.toImmutableList()
             }
-            loadPendingLoans()
-            loadCompletedLoans()
+            applyLoanLists()
 
             TestIdlingResource.decrement()
         }
@@ -258,6 +271,14 @@ class LoanViewModel @Inject constructor(
     private fun getTotalOweAmount(totalOweAmount: Double, currCode: String): String {
         return if (totalOweAmount != 0.0) {
             "${totalOweAmount.format(currCode)} $currCode"
+        } else {
+            ""
+        }
+    }
+
+    private fun getTotalNetAmount(netAmount: Double, currCode: String): String {
+        return if (totalOweAmount != 0.0 || totalOwedAmount != 0.0) {
+            "${netAmount.format(currCode)} $currCode"
         } else {
             ""
         }
@@ -348,12 +369,14 @@ class LoanViewModel @Inject constructor(
         }
     }
 
-    private fun loadCompletedLoans() {
-        completedLoans = allLoans.filter { loan -> loan.percentPaid >= 1.0 }.toImmutableList()
-    }
-
-    private fun loadPendingLoans() {
-        pendingLoans = allLoans.filter { loan -> loan.percentPaid < 1.0 }.toImmutableList()
+    private fun applyLoanLists() {
+        val filtered = when (selectedSort) {
+            LoanSort.ALL -> allLoans
+            LoanSort.LEND -> allLoans.filter { it.loan.type == LoanType.LEND }.toImmutableList()
+            LoanSort.BORROW -> allLoans.filter { it.loan.type == LoanType.BORROW }.toImmutableList()
+        }
+        pendingLoans = filtered.filter { loan -> loan.percentPaid < 1.0 }.toImmutableList()
+        completedLoans = filtered.filter { loan -> loan.percentPaid >= 1.0 }.toImmutableList()
     }
 
     private fun createAccount(data: CreateAccountData) {

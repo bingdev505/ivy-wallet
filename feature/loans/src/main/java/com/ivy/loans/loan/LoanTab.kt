@@ -6,3 +6,8 @@ import androidx.compose.runtime.Immutable
 enum class LoanTab {
     PENDING, COMPLETED
 }
+
+@Immutable
+enum class LoanSort {
+    ALL, LEND, BORROW
+}

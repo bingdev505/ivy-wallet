@@ -12,6 +12,11 @@ import org.junit.Test
 import java.util.UUID
 
 class CategoryMapperTest {
+    @Test fun `category type survives entity round trip`() {
+        val mapper = CategoryMapper()
+        val entity = CategoryEntity(name = "Salary", color = 42, transactionType = com.ivy.data.model.CategoryType.INCOME)
+        with(mapper) { entity.toDomain().getOrNull()!!.toEntity().transactionType shouldBe entity.transactionType }
+    }
     private lateinit var mapper: CategoryMapper
 
     @Before

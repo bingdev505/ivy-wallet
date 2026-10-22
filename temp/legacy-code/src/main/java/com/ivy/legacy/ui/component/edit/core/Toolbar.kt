@@ -40,6 +40,8 @@ fun Toolbar(
 
     showDuplicateButton: Boolean,
     onDuplicate: () -> Unit,
+    loanSelected: Boolean = false,
+    showTransferType: Boolean = false,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically
@@ -53,7 +55,10 @@ fun Toolbar(
 
         Spacer(Modifier.weight(1f))
 
-        when (type) {
+        if (loanSelected) {
+            IvyOutlinedButton(text = "Loan", iconStart = R.drawable.ic_custom_loan_s, onClick = onChangeTransactionTypeModal)
+            Spacer(Modifier.width(12.dp))
+        } else when (type) {
             TransactionType.INCOME -> {
                 IvyOutlinedButton(
                     text = stringResource(R.string.income),
@@ -77,7 +82,10 @@ fun Toolbar(
             }
 
             else -> {
-                // show nothing
+                if (showTransferType) {
+                    IvyOutlinedButton(text = stringResource(R.string.transfer), iconStart = R.drawable.ic_transfer, onClick = onChangeTransactionTypeModal)
+                    Spacer(Modifier.width(12.dp))
+                }
             }
         }
 

@@ -57,6 +57,7 @@ class SettingsViewModel @Inject constructor(
     private val updateSettingsAct: UpdateSettingsAct,
     private val settingsWriter: WriteSettingsDao,
     private val exportCsvUseCase: ExportCsvUseCase,
+    private val autoBackupManager: com.ivy.data.backup.auto.AutoBackupManager,
     @ApplicationContext private val context: Context
 ) : ComposeViewModel<SettingsState, SettingsEvent>() {
 
@@ -70,6 +71,8 @@ class SettingsViewModel @Inject constructor(
     private val treatTransfersAsIncomeExpense = mutableStateOf(false)
     private val startDateOfMonth = mutableIntStateOf(1)
     private val progressState = mutableStateOf(false)
+    private val autoBackupDaily = mutableStateOf(false)
+    private val autoBackupInstant = mutableStateOf(false)
 
     @Composable
     override fun uiState(): SettingsState {
@@ -88,7 +91,9 @@ class SettingsViewModel @Inject constructor(
             startDateOfMonth = getStartDateOfMonth(),
             progressState = getProgressState(),
             hideIncome = getHideIncome(),
-            languageOptionVisible = isLanguageOptionVisible()
+            languageOptionVisible = isLanguageOptionVisible(),
+            autoBackupDaily = autoBackupDaily.value,
+            autoBackupInstant = autoBackupInstant.value
         )
     }
 
@@ -102,6 +107,12 @@ class SettingsViewModel @Inject constructor(
         initializeHideIncome()
         initializeTransfersAsIncomeExpense()
         initializeStartDateOfMonth()
+        initializeAutoBackup()
+    }
+
+    private fun initializeAutoBackup() {
+        autoBackupDaily.value = sharedPrefs.getBoolean(SharedPrefs.AUTO_BACKUP_DAILY, false)
+        autoBackupInstant.value = sharedPrefs.getBoolean(SharedPrefs.AUTO_BACKUP_INSTANT, false)
     }
 
     private suspend fun initializeCurrency() {
@@ -229,11 +240,23 @@ class SettingsViewModel @Inject constructor(
             )
 
             is SettingsEvent.SetStartDateOfMonth -> setStartDateOfMonth(event.startDate)
+            is SettingsEvent.SetAutoBackupDaily -> setAutoBackupDaily(event.enable)
+            is SettingsEvent.SetAutoBackupInstant -> setAutoBackupInstant(event.enable)
 
             SettingsEvent.DeleteCloudUserData -> deleteCloudUserData()
             SettingsEvent.DeleteAllUserData -> deleteAllUserData()
             SettingsEvent.SwitchLanguage -> switchLanguage()
         }
+    }
+
+    private fun setAutoBackupDaily(enable: Boolean) {
+        autoBackupDaily.value = enable
+        autoBackupManager.scheduleDailyBackup(enable)
+    }
+
+    private fun setAutoBackupInstant(enable: Boolean) {
+        autoBackupInstant.value = enable
+        autoBackupManager.setInstantBackupEnabled(enable)
     }
 
     private fun setCurrency(newCurrency: String) {

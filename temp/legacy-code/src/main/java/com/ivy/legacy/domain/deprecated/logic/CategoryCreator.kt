@@ -33,6 +33,7 @@ class CategoryCreator @Inject constructor(
                         icon = data.icon?.let(IconAsset::from)?.getOrNull(),
                         orderNum = categoryRepository.findMaxOrderNum().nextOrderNum(),
                         id = CategoryId(UUID.randomUUID()),
+                        transactionType = data.transactionType,
                     )
                 }.getOrNull()
 

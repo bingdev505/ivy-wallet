@@ -34,6 +34,8 @@ class SharedPrefs @Inject constructor(
         // ----------------------------- Others -----------------------------------------------
         const val CATEGORY_SORT_ORDER = "categorySortOrder"
         const val DATA_BACKUP_COMPLETED = "data_backup_completed"
+        const val AUTO_BACKUP_DAILY = "auto_backup_daily"
+        const val AUTO_BACKUP_INSTANT = "auto_backup_instant"
     }
 
     private val preferences = appContext.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)

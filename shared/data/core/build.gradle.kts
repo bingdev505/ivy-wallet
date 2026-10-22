@@ -13,6 +13,7 @@ dependencies {
     api(projects.shared.data.model)
 
     api(libs.datastore)
+    implementation(libs.androidx.work)
     implementation(libs.bundles.ktor)
 
     testImplementation(projects.shared.data.modelTesting)

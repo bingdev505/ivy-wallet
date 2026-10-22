@@ -42,6 +42,9 @@ import com.ivy.navigation.Screen
 import com.ivy.navigation.SearchScreen
 import com.ivy.navigation.SettingsScreen
 import com.ivy.navigation.TransactionsScreen
+import com.ivy.navigation.InboxScreen
+import com.ivy.home.inbox.InboxScreen as InboxScreenUi
+import com.ivy.home.trips.TripGroupsScreen as TripGroupsScreenUi
 import com.ivy.onboarding.OnboardingScreen
 import com.ivy.piechart.PieChartStatisticScreen
 import com.ivy.planned.edit.EditPlannedScreen
@@ -88,5 +91,10 @@ fun BoxWithConstraintsScope.IvyNavGraph(screen: Screen?) {
         ReleasesScreen -> ReleasesScreenImpl()
         DisclaimerScreen -> DisclaimerScreenImpl()
         PollScreen -> PollScreen()
+        InboxScreen -> {
+            val nav = com.ivy.navigation.navigation()
+            InboxScreenUi(onBack = { nav.returnToRoot(MainScreen) })
+        }
+        com.ivy.navigation.TripGroupsScreen -> TripGroupsScreenUi()
     }
 }

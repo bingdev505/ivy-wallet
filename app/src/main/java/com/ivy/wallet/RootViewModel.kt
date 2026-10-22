@@ -47,6 +47,12 @@ class RootViewModel @Inject constructor(
 
     companion object {
         const val EXTRA_ADD_TRANSACTION_TYPE = "add_transaction_type_extra"
+        const val EXTRA_ADD_TRANSACTION_AMOUNT = "add_transaction_amount_extra"
+        const val EXTRA_ADD_TRANSACTION_TITLE = "add_transaction_title_extra"
+        const val EXTRA_ADD_TRANSACTION_DESC = "add_transaction_desc_extra"
+        const val EXTRA_CAPTURED_MESSAGE_ID = "captured_message_id_extra"
+        const val EXTRA_PAYMENT_CURRENCY = "payment_currency_extra"
+        const val EXTRA_OPEN_PAYMENT_INBOX = "open_payment_inbox_extra"
 
         const val USER_INACTIVITY_TIME_LIMIT = 60 // Time in seconds
     }
@@ -99,13 +105,21 @@ class RootViewModel @Inject constructor(
 
     private fun navigateOnboardedUser(intent: Intent) {
         if (!handleSpecialStart(intent)) {
-            nav.navigateTo(MainScreen)
+            nav.returnToRoot(MainScreen)
             transactionReminderLogic.scheduleReminder()
         }
     }
 
     @Suppress("SwallowedException")
     private fun handleSpecialStart(intent: Intent): Boolean {
+        if (intent.getBooleanExtra(EXTRA_OPEN_PAYMENT_INBOX, false)) {
+            intent.removeExtra(EXTRA_OPEN_PAYMENT_INBOX)
+            if (nav.currentScreen == null) nav.returnToRoot(MainScreen)
+            if (nav.currentScreen != com.ivy.navigation.InboxScreen) {
+                nav.navigateTo(com.ivy.navigation.InboxScreen)
+            }
+            return true
+        }
         val addTrnType: TransactionType? = try {
             intent.getSerializableExtra(EXTRA_ADD_TRANSACTION_TYPE) as? TransactionType
                 ?: TransactionType.valueOf(intent.getStringExtra(EXTRA_ADD_TRANSACTION_TYPE) ?: "")
@@ -114,17 +128,32 @@ class RootViewModel @Inject constructor(
         }
 
         if (addTrnType != null) {
+            val amount = intent.getDoubleExtra(EXTRA_ADD_TRANSACTION_AMOUNT, 0.0)
+            val title = intent.getStringExtra(EXTRA_ADD_TRANSACTION_TITLE)
+            val desc = intent.getStringExtra(EXTRA_ADD_TRANSACTION_DESC)
+
+            if (nav.currentScreen == null) nav.returnToRoot(MainScreen)
             nav.navigateTo(
                 EditTransactionScreen(
                     initialTransactionId = null,
-                    type = addTrnType
+                    type = addTrnType,
+                    initialAmount = if (amount > 0.0) java.math.BigDecimal.valueOf(amount) else null,
+                    initialTitle = title,
+                    initialDescription = desc,
+                    capturedMessageId = intent.getLongExtra(EXTRA_CAPTURED_MESSAGE_ID, -1).takeIf { it > 0 },
+                    initialCurrency = intent.getStringExtra(EXTRA_PAYMENT_CURRENCY),
                 )
             )
 
+            intent.removeExtra(EXTRA_ADD_TRANSACTION_TYPE)
             return true
         }
 
         return false
+    }
+
+    fun handleNewIntent(intent: Intent) {
+        handleSpecialStart(intent)
     }
 
     @Suppress("EmptyFunctionBlock")

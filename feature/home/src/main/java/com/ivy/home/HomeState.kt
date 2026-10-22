@@ -34,5 +34,6 @@ data class HomeState(
     val hideBalance: Boolean,
     val hideIncome: Boolean,
     val expanded: Boolean,
-    val shouldShowAccountSpecificColorInTransactions: Boolean
+    val shouldShowAccountSpecificColorInTransactions: Boolean,
+    val unreadInboxCount: Int = 0
 )

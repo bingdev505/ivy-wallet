@@ -11,6 +11,10 @@ data object MainScreen : Screen {
         get() = true
 }
 
+data object TripGroupsScreen : Screen {
+    override val isLegacy: Boolean get() = true
+}
+
 data object OnboardingScreen : Screen {
     override val isLegacy: Boolean
         get() = true
@@ -28,7 +32,12 @@ data class EditTransactionScreen(
     val type: TransactionType,
     // extras
     val accountId: UUID? = null,
-    val categoryId: UUID? = null
+    val categoryId: UUID? = null,
+    val initialAmount: java.math.BigDecimal? = null,
+    val initialTitle: String? = null,
+    val initialDescription: String? = null,
+    val capturedMessageId: Long? = null,
+    val initialCurrency: String? = null,
 ) : Screen {
     override val isLegacy: Boolean
         get() = true
@@ -145,3 +154,8 @@ data object ReleasesScreen : Screen
 data object DisclaimerScreen : Screen
 
 data object PollScreen : Screen
+
+data object InboxScreen : Screen {
+    // This screen uses the legacy Ivy theme and components, like the home screen.
+    override val isLegacy: Boolean = true
+}

@@ -378,6 +378,10 @@
     <string name="education">Education</string>
     <string name="pet">Pet</string>
     <string name="sports">Sports</string>
+    <string name="salary">Salary</string>
+    <string name="freelance">Freelance</string>
+    <string name="business">Business</string>
+    <string name="rental">Rental</string>
     <string name="adjust_initial_balance">Adjust your initial balance</string>
     <string name="to_accounts">To accounts</string>
     <string name="adjust_initial_balance_description"><![CDATA[Let\'s get started. Go to \"Accounts\" -> Tap an account -> Tap its balance -> Enter current balance. That\'s it!]]></string>
@@ -484,8 +488,12 @@
     <string name="releases">Releases</string>
     <string name="enter_with_offline_account">ENTER WITH OFFLINE ACCOUNT</string>
     <string name="your_data_will_be_saved_only_locally">Your data will be stored locally on your device. If you uninstall the app or switch devices, you may lose your data. To prevent this, we recommend that you regularly export your backups.</string>
-    <string name="you_owe">You owe: %1$s</string>
-    <string name="you_are_owed">You\'re owed %1$s</string>
+    <string name="you_owe">Borrowed: %1$s</string>
+    <string name="you_are_owed">Lent: %1$s</string>
+    <string name="loan_net_amount">Net: %1$s</string>
+    <string name="loan_sort_all">All</string>
+    <string name="loan_sort_lend">Lend</string>
+    <string name="loan_sort_borrow">Borrow</string>
     <string name="manual_csv_import">Manual CSV import</string>
     <string name="csv_import_failed">If this doesn\'t work, consider using manual CSV import.</string>
     <string name="import_a_csv_file_to_continue">Import a CSV file to continue.</string>

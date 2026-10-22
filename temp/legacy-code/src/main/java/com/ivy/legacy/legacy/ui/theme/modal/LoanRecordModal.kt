@@ -70,6 +70,11 @@ data class LoanRecordModalData(
     val selectedAccount: Account? = null,
     val createLoanRecordTransaction: Boolean = false,
     val isLoanInterest: Boolean = false,
+    val initialAmount: Double = 0.0,
+    val initialNote: String? = null,
+    val initialRecordType: LoanRecordType = LoanRecordType.DECREASE,
+    val requireTransaction: Boolean = false,
+    val title: String? = null,
     val id: UUID = UUID.randomUUID(),
 )
 
@@ -88,23 +93,33 @@ fun BoxWithConstraintsScope.LoanRecordModal(
     dismiss: () -> Unit,
     accounts: List<Account> = emptyList(),
     onCreateAccount: (CreateAccountData) -> Unit = {},
+    dismissOnSave: Boolean = true,
+    onChooseLoan: (() -> Unit)? = null,
 ) {
     val initialRecord = modal?.loanRecord
 
     var noteTextFieldValue by remember(modal) {
-        mutableStateOf(selectEndTextFieldValue(initialRecord?.note))
+        mutableStateOf(selectEndTextFieldValue(initialRecord?.note ?: modal?.initialNote))
     }
     var currencyCode by remember(modal) {
         mutableStateOf(modal?.baseCurrency ?: "")
     }
     var amount by remember(modal) {
-        mutableStateOf(modal?.loanRecord?.amount ?: 0.0)
+        mutableStateOf(modal?.loanRecord?.amount ?: modal?.initialAmount ?: 0.0)
     }
     var selectedAcc by remember(modal) {
         mutableStateOf(modal?.selectedAccount)
     }
+    var knownAccountIds by remember(modal) { mutableStateOf(accounts.map { it.id }.toSet()) }
+    androidx.compose.runtime.LaunchedEffect(accounts) {
+        accounts.filter { it.id !in knownAccountIds }.singleOrNull()?.let {
+            selectedAcc = it
+            currencyCode = it.currency ?: modal?.baseCurrency.orEmpty()
+        }
+        knownAccountIds = accounts.map { it.id }.toSet()
+    }
     var createLoanRecordTrans by remember(modal) {
-        mutableStateOf(modal?.createLoanRecordTransaction ?: false)
+        mutableStateOf(modal?.requireTransaction == true || modal?.createLoanRecordTransaction == true)
     }
     var loanInterest by remember(modal) {
         mutableStateOf(modal?.isLoanInterest ?: false)
@@ -116,7 +131,7 @@ fun BoxWithConstraintsScope.LoanRecordModal(
         mutableStateOf(modal?.loanAccountCurrencyCode != null && modal.loanAccountCurrencyCode != modal.baseCurrency)
     }
     var loanRecordType by remember(modal) {
-        mutableStateOf(modal?.loanRecord?.loanRecordType ?: LoanRecordType.DECREASE)
+        mutableStateOf(modal?.loanRecord?.loanRecordType ?: modal?.initialRecordType ?: LoanRecordType.DECREASE)
     }
 
     var dateTime = modal?.loanRecord?.dateTime ?: dateTime
@@ -154,14 +169,14 @@ fun BoxWithConstraintsScope.LoanRecordModal(
 
                         onCreate = onCreate,
                         onEdit = onEdit,
-                        dismiss = dismiss,
+                        dismiss = if (dismissOnSave) dismiss else ({}),
                     )
                 }
             }
         }
     ) {
         onScreenStart {
-            if (modal?.loanRecord == null) {
+            if (modal?.loanRecord == null && (modal?.initialAmount ?: 0.0) <= 0.0) {
                 amountModalVisible = true
             }
         }
@@ -172,7 +187,7 @@ fun BoxWithConstraintsScope.LoanRecordModal(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ModalTitle(
-                text = if (initialRecord != null) {
+                text = modal?.title ?: if (initialRecord != null) {
                     stringResource(R.string.edit_record)
                 } else {
                     stringResource(
@@ -194,6 +209,12 @@ fun BoxWithConstraintsScope.LoanRecordModal(
 
         Spacer(Modifier.height(24.dp))
 
+        onChooseLoan?.let { choose ->
+            com.ivy.wallet.ui.theme.components.IvyOutlinedButton(
+                modifier = Modifier.padding(horizontal = 24.dp), text = "Change loan / New loan",
+                iconStart = R.drawable.ic_custom_loan_s, onClick = choose)
+            Spacer(Modifier.height(16.dp))
+        }
         ModalNameInput(
             hint = stringResource(R.string.note),
             autoFocusKeyboard = false,
@@ -229,7 +250,7 @@ fun BoxWithConstraintsScope.LoanRecordModal(
             accounts = accounts,
             selectedAccount = selectedAcc,
             onSelectedAccountChanged = {
-                currencyCode = it.currency ?: getDefaultFIATCurrency().currencyCode
+                currencyCode = it.currency ?: modal?.baseCurrency.orEmpty()
 
                 reCalculateVisible =
                     initialRecord?.convertedAmount != null && selectedAcc != null && currencyCode == modal.baseCurrency
@@ -267,7 +288,7 @@ fun BoxWithConstraintsScope.LoanRecordModal(
 
         Spacer(Modifier.height(16.dp))
 
-        IvyCheckboxWithText(
+        if (modal?.requireTransaction != true) IvyCheckboxWithText(
             modifier = Modifier
                 .padding(start = 16.dp)
                 .align(Alignment.Start),
@@ -374,7 +395,7 @@ fun BoxWithConstraintsScope.LoanRecordModal(
 
             onCreate = onCreate,
             onEdit = onEdit,
-            dismiss = dismiss,
+            dismiss = if (dismissOnSave) dismiss else ({}),
         )
 
         accountChangeConformationModal = false

@@ -21,6 +21,7 @@ data class CategoryEntity(
     val icon: String? = null,
     @SerialName("orderNum")
     val orderNum: Double = 0.0,
+    val transactionType: com.ivy.data.model.CategoryType? = null,
 
     @Deprecated("Obsolete field used for cloud sync. Can't be deleted because of backwards compatibility")
     @SerialName("isSynced")
